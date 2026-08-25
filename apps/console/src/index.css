@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* flagcast "switchboard" — light-first control surface. */
+@theme {
+  --color-paper: #f4f5f8;
+  --color-surface: #ffffff;
+  --color-surface2: #f0f1f5;
+  --color-line: #e3e6ec;
+  --color-ink: #15171c;
+  --color-muted: #6a7080;
+  --color-brand: #5b3df5;
+  --color-brand-ink: #4a2fe0;
+  --color-brand-soft: #ece8ff;
+  --color-off: #9aa0ad;
+  --color-danger: #e5484d;
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Dark theme: redefine the tokens the utilities resolve. */
+html.dark {
+  --color-paper: #0e0f14;
+  --color-surface: #16181f;
+  --color-surface2: #1c1f28;
+  --color-line: #262a33;
+  --color-ink: #eceef3;
+  --color-muted: #8a90a0;
+  --color-brand: #6d5bff;
+  --color-brand-ink: #8577ff;
+  --color-brand-soft: #211d3d;
+  --color-off: #565c6b;
+  --color-danger: #ff6369;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Signature: a flag that is ON broadcasts — a pulse ring off its status node. */
+@keyframes broadcast {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-brand) 55%, transparent); }
+  70% { box-shadow: 0 0 0 7px color-mix(in oklab, var(--color-brand) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-brand) 0%, transparent); }
+}
+.broadcast {
+  animation: broadcast 2.2s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .broadcast {
+    animation: none;
+  }
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-brand) 28%, transparent);
+}
