@@ -1,0 +1,40 @@
+name: deploy
+
+# Manual, gated deploy to AWS ECS via Terraform. Requires repo secrets
+# (AWS_ROLE_ARN for OIDC, DOCDB_PASSWORD, optional ANTHROPIC_API_KEY /
+# GATEWAY_API_KEY) and a remote Terraform backend configured in infra/terraform.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy"
+        required: true
+        default: latest
+
+permissions:
+  id-token: write # OIDC to assume the AWS role
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init
+      - name: Apply
+        # Inputs/secrets are passed as TF_VAR_* env, never interpolated into the shell.
+        env:
+          TF_VAR_image_tag: ${{ inputs.image_tag }}
+          TF_VAR_docdb_password: ${{ secrets.DOCDB_PASSWORD }}
+          TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          TF_VAR_gateway_api_key: ${{ secrets.GATEWAY_API_KEY }}
+        run: terraform apply -auto-approve
