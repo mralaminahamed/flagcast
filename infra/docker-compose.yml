@@ -98,6 +98,7 @@ services:
       MONGO_URI: mongodb://flagcast:flagcast@mongo:27017/flagcast?authSource=admin
       REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
+      RESYNC_SECONDS: ${RESYNC_SECONDS:-60}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports: ["0.0.0.0:50051:50051"]
 
