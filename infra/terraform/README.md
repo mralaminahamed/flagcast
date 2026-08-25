@@ -5,12 +5,26 @@ Fargate services for gateway/evaluator/ai/nats (internal DNS via Cloud Map),
 **DocumentDB** (Mongo-compatible) and **ElastiCache Redis**, ECR repositories,
 and CloudWatch logs.
 
+State is stored in S3 (partial backend config). Provide it at init via a
+`backend.hcl` (git-ignored) or `-backend-config` flags:
+
+```hcl
+# backend.hcl
+bucket         = "your-tf-state-bucket"
+key            = "flagcast/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "your-tf-lock-table"
+```
+
 ```bash
 cd infra/terraform
-terraform init
+terraform init -backend-config=backend.hcl
 terraform apply -var="docdb_password=<strong-password>" \
   -var="image_tag=<sha>" -var="anthropic_api_key=<key>"
 ```
+
+ECS services run with container health checks and a deployment circuit breaker
+(auto-rollback on a failed rollout).
 
 Outputs the public gateway URL and the ECR repository URLs to push images to.
 
