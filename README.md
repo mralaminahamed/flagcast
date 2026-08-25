@@ -68,11 +68,17 @@ can call — `list_flags`, `get_flag`, `create_flag`, `set_enabled`, `set_rollou
 ## Roadmap (phased, PR per phase)
 
 - **Phase 0** — monorepo skeleton, backing stores, gateway health stub, CI ✅
-- **Phase 1** — flag domain + REST admin CRUD (gateway + Mongo)
-- **Phase 2** — gRPC evaluator + proto + Go SDK client
+- **Phase 1** — flag domain + REST admin CRUD (gateway + Mongo) ✅
+- **Phase 2** — gRPC evaluator + proto + Go SDK client ✅
 - **Phase 3** — Redis eval cache + NATS change stream → streaming SDK updates ✅
 - **Phase 4** — React console (flag list, create/edit/toggle, rollout, audit) ✅
 - **Phase 5** — AI rollout analysis (stats + Claude) + MCP server ✅
-- **Phase 5** — AI experiment analysis + MCP server
-- **Phase 6** — observability (metrics + tracing) + cloud IaC + CD
-```
+- **Phase 6** — observability (metrics + OTel tracing), cloud IaC (AWS), CD ✅
+
+## Deploy
+
+- **Images:** `.github/workflows/images.yml` builds and pushes every service +
+  the console to GHCR on push to `trunk` and on tags.
+- **Cloud:** `infra/terraform` provisions AWS ECS Fargate (see its README).
+- **CD:** `.github/workflows/deploy.yml` runs `terraform apply` on manual
+  dispatch (requires AWS OIDC + secrets and a remote Terraform backend).
