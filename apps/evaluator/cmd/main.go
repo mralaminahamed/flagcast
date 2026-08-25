@@ -112,8 +112,10 @@ func main() {
 	if err != nil {
 		logger.Log.Fatal().Err(err).Str("addr", grpcAddr).Msg("evaluator: listen")
 	}
+	// Closed on shutdown so open Watch streams end and GracefulStop can complete.
+	shutdownCh := make(chan struct{})
 	srv := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
-	flagcastv1.RegisterEvaluatorServer(srv, evalsvc.New(repo, hub))
+	flagcastv1.RegisterEvaluatorServer(srv, evalsvc.New(repo, hub, shutdownCh))
 	reflection.Register(srv)
 
 	go func() {
@@ -132,5 +134,15 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	logger.Log.Info().Msg("evaluator shutting down")
-	srv.GracefulStop()
+	close(shutdownCh) // end open Watch streams
+	// Time-box the graceful stop; fall back to a hard Stop so a wedged stream
+	// can't block shutdown indefinitely.
+	done := make(chan struct{})
+	go func() { srv.GracefulStop(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		logger.Log.Warn().Msg("evaluator: graceful stop timed out, forcing")
+		srv.Stop()
+	}
 }

@@ -20,20 +20,23 @@ type FlagSource interface {
 	List(ctx context.Context) ([]models.Flag, error)
 }
 
-// Watchers registers a Watch stream and returns its change channel plus an
-// unregister func.
+// Watchers registers a Watch stream and returns its change channel, an
+// unregister func, and ok=false when the watcher cap is reached.
 type Watchers interface {
-	Register(contextKey string) (<-chan *flagcastv1.FlagChange, func())
+	Register(contextKey string) (<-chan *flagcastv1.FlagChange, func(), bool)
 }
 
 // Server answers flag-evaluation RPCs, reading flag config from a FlagSource.
 type Server struct {
 	flagcastv1.UnimplementedEvaluatorServer
-	src FlagSource
-	hub Watchers // may be nil (Watch unavailable)
+	src      FlagSource
+	hub      Watchers        // may be nil (Watch unavailable)
+	shutdown <-chan struct{} // closed on server shutdown to end Watch streams
 }
 
-func New(src FlagSource, hub Watchers) *Server { return &Server{src: src, hub: hub} }
+func New(src FlagSource, hub Watchers, shutdown <-chan struct{}) *Server {
+	return &Server{src: src, hub: hub, shutdown: shutdown}
+}
 
 func (s *Server) Evaluate(ctx context.Context, req *flagcastv1.EvaluateRequest) (*flagcastv1.EvaluateResponse, error) {
 	if req.GetFlagKey() == "" {
@@ -74,7 +77,10 @@ func (s *Server) Watch(req *flagcastv1.WatchRequest, stream flagcastv1.Evaluator
 	ctxKey := req.GetContext().GetKey()
 
 	// Register before the snapshot so no change is missed between them.
-	ch, unregister := s.hub.Register(ctxKey)
+	ch, unregister, ok := s.hub.Register(ctxKey)
+	if !ok {
+		return status.Error(codes.ResourceExhausted, "too many watchers")
+	}
 	defer unregister()
 
 	flags, err := s.src.List(stream.Context())
@@ -92,6 +98,9 @@ func (s *Server) Watch(req *flagcastv1.WatchRequest, stream flagcastv1.Evaluator
 		select {
 		case <-stream.Context().Done():
 			return nil
+		case <-s.shutdown:
+			// Server is stopping — end the stream so GracefulStop can complete.
+			return status.Error(codes.Unavailable, "server shutting down")
 		case fc := <-ch:
 			if err := stream.Send(fc); err != nil {
 				return err

@@ -31,14 +31,22 @@ type Hub struct {
 	seq int
 }
 
+// maxWatchers bounds concurrent Watch streams so an unauthenticated client can't
+// exhaust memory/goroutines by opening unlimited streams.
+const maxWatchers = 10000
+
 func NewHub(src FlagSource) *Hub { return &Hub{src: src, m: map[int]*watcher{}} }
 
 // Register adds a watcher for contextKey and returns its change channel plus an
-// unregister func. The channel is buffered and lossy: a slow watcher drops
-// updates rather than blocking the broadcaster.
-func (h *Hub) Register(contextKey string) (<-chan *flagcastv1.FlagChange, func()) {
+// unregister func. ok is false when the watcher cap is reached. The channel is
+// buffered and lossy: a slow watcher drops updates rather than blocking the
+// broadcaster.
+func (h *Hub) Register(contextKey string) (ch <-chan *flagcastv1.FlagChange, unregister func(), ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if len(h.m) >= maxWatchers {
+		return nil, nil, false
+	}
 	id := h.seq
 	h.seq++
 	w := &watcher{contextKey: contextKey, ch: make(chan *flagcastv1.FlagChange, 16)}
@@ -47,7 +55,7 @@ func (h *Hub) Register(contextKey string) (<-chan *flagcastv1.FlagChange, func()
 		h.mu.Lock()
 		delete(h.m, id)
 		h.mu.Unlock()
-	}
+	}, true
 }
 
 // Broadcast re-evaluates the changed flag for every watcher and delivers a
