@@ -26,6 +26,7 @@ import (
 	flagcastv1 "github.com/mralaminahamed/flagcast/packages/shared/genproto/flagcast/v1"
 	"github.com/mralaminahamed/flagcast/packages/shared/health"
 	"github.com/mralaminahamed/flagcast/packages/shared/logger"
+	"github.com/mralaminahamed/flagcast/packages/shared/metrics"
 	"github.com/mralaminahamed/flagcast/packages/shared/store"
 	"github.com/mralaminahamed/flagcast/packages/shared/tracing"
 )
@@ -84,6 +85,7 @@ func main() {
 				if json.Unmarshal(data, &evt) != nil {
 					return
 				}
+				metrics.ChangesProcessed.Inc()
 				// mctx carries the trace extracted from the message headers, so the
 				// refresh + fan-out are in the same trace as the gateway mutation.
 				repo.OnChange(mctx, evt)

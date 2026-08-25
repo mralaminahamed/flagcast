@@ -9,6 +9,7 @@ import (
 	"github.com/mralaminahamed/flagcast/packages/shared/bus"
 	"github.com/mralaminahamed/flagcast/packages/shared/cache"
 	"github.com/mralaminahamed/flagcast/packages/shared/logger"
+	"github.com/mralaminahamed/flagcast/packages/shared/metrics"
 	"github.com/mralaminahamed/flagcast/packages/shared/models"
 	"github.com/mralaminahamed/flagcast/packages/shared/store"
 )
@@ -40,7 +41,10 @@ func (r *Repo) Get(ctx context.Context, key string) (models.Flag, error) {
 		if f, ok, err := r.cache.Get(ctx, key); err != nil {
 			logger.Log.Warn().Err(err).Msg("flag cache get; falling back to mongo")
 		} else if ok {
+			metrics.CacheOps.WithLabelValues("hit").Inc()
 			return f, nil
+		} else {
+			metrics.CacheOps.WithLabelValues("miss").Inc()
 		}
 	}
 	f, err := r.store.Get(ctx, key)
