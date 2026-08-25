@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
@@ -58,17 +59,25 @@ func main() {
 	}
 
 	repo := flags.New(st, fc)
-	if err := repo.Warm(ctx); err != nil {
-		logger.Log.Warn().Err(err).Msg("evaluator: cache warm failed (continuing)")
-	}
 	hub := watch.NewHub(repo)
 
+	warm := func() {
+		wctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := repo.Warm(wctx); err != nil {
+			logger.Log.Warn().Err(err).Msg("evaluator: cache warm failed")
+		}
+	}
+
 	if url := config.Env("NATS_URL", ""); url != "" {
-		if b, err := bus.Connect(url); err != nil {
+		// Re-warm on reconnect: change events published while NATS was unreachable
+		// are lost, so re-snapshot from Mongo once the connection returns.
+		if b, err := bus.Connect(url, warm); err != nil {
 			logger.Log.Warn().Err(err).Msg("evaluator: NATS unavailable, cache won't auto-refresh")
 		} else {
 			defer b.Close()
 			checks = append(checks, health.Check{Name: "nats", Ping: b.Ping})
+			// Subscribe BEFORE the initial warm so no change is missed in between.
 			_, err := b.Subscribe(bus.SubjectFlagChanged, func(mctx context.Context, data []byte) {
 				var evt bus.FlagChanged
 				if json.Unmarshal(data, &evt) != nil {
@@ -84,6 +93,19 @@ func main() {
 			}
 		}
 	}
+
+	// Initial snapshot, then a periodic full re-sync that deterministically
+	// repairs any drift from a missed event (a dropped flag.changed never leaves
+	// the cache permanently stale).
+	warm()
+	resync := time.Duration(config.EnvInt("RESYNC_SECONDS", 60)) * time.Second
+	go func() {
+		t := time.NewTicker(resync)
+		defer t.Stop()
+		for range t.C {
+			warm()
+		}
+	}()
 
 	grpcAddr := config.Env("GRPC_ADDR", ":50051")
 	lis, err := net.Listen("tcp", grpcAddr)

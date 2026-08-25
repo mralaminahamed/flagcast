@@ -29,11 +29,22 @@ type Bus struct {
 	nc *nats.Conn
 }
 
-func Connect(url string) (*Bus, error) {
+// Connect dials NATS. Any onReconnect callbacks fire after the client
+// re-establishes a dropped connection — the caller uses this to re-sync state
+// that may have changed (and whose change events were lost) during the outage.
+func Connect(url string, onReconnect ...func()) (*Bus, error) {
 	if url == "" {
 		url = nats.DefaultURL
 	}
-	nc, err := nats.Connect(url, nats.MaxReconnects(-1), nats.ReconnectWait(time.Second))
+	opts := []nats.Option{nats.MaxReconnects(-1), nats.ReconnectWait(time.Second)}
+	if len(onReconnect) > 0 {
+		opts = append(opts, nats.ReconnectHandler(func(*nats.Conn) {
+			for _, fn := range onReconnect {
+				fn()
+			}
+		}))
+	}
+	nc, err := nats.Connect(url, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
