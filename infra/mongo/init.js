@@ -1,8 +1,8 @@
 // flagcast — Mongo bootstrap. Runs once on first container start.
 db = db.getSiblingDB('flagcast');
 
+// Flag key is stored as _id, which is unique by definition — no extra index.
 db.createCollection('flags');
-db.flags.createIndex({ key: 1 }, { unique: true });
 
 db.createCollection('audit');
 db.audit.createIndex({ flag_key: 1, timestamp: -1 });
