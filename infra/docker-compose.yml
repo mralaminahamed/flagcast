@@ -149,6 +149,7 @@ services:
     profiles: [observability]
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
     ports: ["127.0.0.1:9099:9090"]
     restart: unless-stopped
     networks: [flagcast-net]
@@ -162,6 +163,7 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports: ["127.0.0.1:3099:3000"]
     depends_on: [prometheus]

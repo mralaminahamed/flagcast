@@ -1,0 +1,52 @@
+groups:
+  - name: flagcast
+    rules:
+      - alert: ServiceDown
+        expr: up{job="flagcast"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} is down"
+          description: "Prometheus can't scrape {{ $labels.service }} ({{ $labels.instance }}) for 1m."
+
+      - alert: GatewayHighErrorRate
+        expr: |
+          sum(rate(flagcast_http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(flagcast_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway 5xx error rate above 5%"
+          description: "5xx responses are {{ $value | humanizePercentage }} of gateway traffic over 5m."
+
+      - alert: GatewayHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(flagcast_http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway p95 latency above 1s"
+          description: "Gateway p95 latency is {{ $value | humanizeDuration }} over 10m."
+
+      - alert: HighUnknownFlagRate
+        expr: |
+          sum(rate(flagcast_evaluations_total{reason="not_found"}[10m]))
+            / clamp_min(sum(rate(flagcast_evaluations_total[10m])), 0.001) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Over half of evaluations hit unknown flags"
+          description: "not_found is {{ $value | humanizePercentage }} of evaluations — SDKs may be using stale keys, or a flag was deleted."
+
+      - alert: WatchUpdatesDropping
+        expr: rate(flagcast_watch_drops_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Watch updates are being dropped"
+          description: "Slow watchers are losing flag updates ({{ $value }}/s over 5m)."
