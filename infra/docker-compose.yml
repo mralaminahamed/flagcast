@@ -1,0 +1,98 @@
+# ==============================================================================
+# flagcast — local development stack.
+#   Up   : docker compose -f infra/docker-compose.yml up -d
+#   Down : docker compose -f infra/docker-compose.yml down -v
+#
+# Phase 0: backing stores (mongo/redis/nats) + the gateway health stub wired in
+# so the stack runs end to end. Services land as each phase merges. See PLAN.md.
+# ==============================================================================
+
+name: flagcast
+
+x-go-svc: &go-svc
+  build:
+    context: ..
+    dockerfile: Dockerfile
+    target: dev
+  env_file: [../.env]
+  environment:
+    MONGO_URI: mongodb://flagcast:flagcast@mongo:27017/flagcast?authSource=admin
+    REDIS_URL: redis://redis:6379/0
+    NATS_URL: nats://nats:4222
+  volumes:
+    - ..:/src:cached
+    - go-build:/root/.cache/go-build
+    - go-mod:/go/pkg/mod
+  depends_on:
+    mongo: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    nats: { condition: service_healthy }
+  restart: unless-stopped
+  networks: [flagcast-net]
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: flagcast-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-flagcast}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-flagcast}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-flagcast}
+    volumes:
+      - mongo-data:/data/db
+      - ./mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
+    ports: ["127.0.0.1:27097:27017"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [flagcast-net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: flagcast-redis
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes: [redis-data:/data]
+    ports: ["127.0.0.1:6397:6379"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 10 }
+    restart: unless-stopped
+    networks: [flagcast-net]
+
+  nats:
+    image: nats:2-alpine
+    container_name: flagcast-nats
+    command: ["-js", "-m", "8222"]
+    volumes: [nats-data:/data]
+    ports: ["127.0.0.1:4297:4222", "127.0.0.1:8297:8222"]
+    healthcheck: { test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8222/healthz"], interval: 5s, timeout: 3s, retries: 10 }
+    restart: unless-stopped
+    networks: [flagcast-net]
+
+  gateway:
+    <<: *go-svc
+    container_name: flagcast-gateway
+    command: ["go", "run", "./apps/gateway/cmd"]
+    environment:
+      PORT: "8080"
+      MONGO_URI: mongodb://flagcast:flagcast@mongo:27017/flagcast?authSource=admin
+      REDIS_URL: redis://redis:6379/0
+      NATS_URL: nats://nats:4222
+    ports: ["0.0.0.0:8080:8080"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mongo-data:
+  redis-data:
+  nats-data:
+  go-build:
+  go-mod:
+
+networks:
+  flagcast-net:
+    driver: bridge
