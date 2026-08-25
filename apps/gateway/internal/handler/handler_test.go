@@ -11,7 +11,7 @@ import (
 
 func TestCreateValidation(t *testing.T) {
 	// Store is never reached on these validation-failure paths, so nil is fine.
-	h := New(nil)
+	h := New(nil, nil)
 	tests := []struct {
 		name, body string
 		want       int

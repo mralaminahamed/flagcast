@@ -24,8 +24,12 @@ import (
 
 const rateLimitPerSec = 20
 
-// New builds a configured Echo instance with middleware and routes.
-func New(s *store.FlagStore) *echo.Echo {
+// Publisher is re-exported so callers can wire a bus without importing handler.
+type Publisher = handler.Publisher
+
+// New builds a configured Echo instance with middleware and routes. pub may be
+// nil (flag-change events are then skipped).
+func New(s *store.FlagStore, pub handler.Publisher) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
@@ -48,7 +52,7 @@ func New(s *store.FlagStore) *echo.Echo {
 		e.Use(middleware.CORS())
 	}
 
-	h := handler.New(s)
+	h := handler.New(s, pub)
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, echo.Map{"status": "ok", "service": "gateway"})
@@ -78,8 +82,8 @@ func New(s *store.FlagStore) *echo.Echo {
 }
 
 // Run starts the server and blocks until SIGINT/SIGTERM, then shuts down.
-func Run(s *store.FlagStore, addr string) error {
-	e := New(s)
+func Run(s *store.FlagStore, pub handler.Publisher, addr string) error {
+	e := New(s, pub)
 	e.Server.ReadHeaderTimeout = 10 * time.Second
 	e.Server.ReadTimeout = 30 * time.Second
 	e.Server.IdleTimeout = 120 * time.Second
