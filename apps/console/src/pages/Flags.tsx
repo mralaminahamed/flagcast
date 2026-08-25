@@ -92,7 +92,6 @@ export function Flags() {
             <FlagRow
               key={f.key}
               flag={f}
-              busy={update.isPending}
               onToggle={(next) => toggle(f, next)}
               onEdit={() => setModal({ open: true, flag: f })}
               onDelete={() => remove(f)}
