@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/mralaminahamed/flagcast/packages/shared/bus"
 	"github.com/mralaminahamed/flagcast/packages/shared/logger"
 	"github.com/mralaminahamed/flagcast/packages/shared/models"
@@ -18,7 +21,7 @@ import (
 
 // Publisher emits flag-change events so evaluators can refresh their cache.
 type Publisher interface {
-	PublishJSON(subject string, v any) error
+	PublishJSON(ctx context.Context, subject string, v any) error
 }
 
 type Handler struct {
@@ -92,7 +95,7 @@ func (h *Handler) Create(c echo.Context) error {
 		return h.storeErr(c, err)
 	}
 	h.audit(c, f.Key, "created")
-	h.notify(f.Key, "created")
+	h.notify(c, f.Key, "created")
 	return c.JSON(http.StatusCreated, f)
 }
 
@@ -122,7 +125,7 @@ func (h *Handler) Update(c echo.Context) error {
 		return h.storeErr(c, err)
 	}
 	h.audit(c, key, "updated")
-	h.notify(key, "updated")
+	h.notify(c, key, "updated")
 	return c.JSON(http.StatusOK, f)
 }
 
@@ -133,7 +136,7 @@ func (h *Handler) Delete(c echo.Context) error {
 		return h.storeErr(c, err)
 	}
 	h.audit(c, key, "deleted")
-	h.notify(key, "deleted")
+	h.notify(c, key, "deleted")
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -160,12 +163,20 @@ func (h *Handler) audit(c echo.Context, key, action string) {
 	}
 }
 
+// aiClient traces the gateway -> ai forward so it joins the request trace.
+var aiClient = &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+
 // Analyze forwards an analysis request to the ai service.
 func (h *Handler) Analyze(c echo.Context) error {
 	if h.aiURL == "" {
 		return c.JSON(http.StatusServiceUnavailable, errResponse{"analysis unavailable (AI_URL unset)"})
 	}
-	resp, err := http.Post(h.aiURL+"/analyze", "application/json", c.Request().Body)
+	req, err := http.NewRequestWithContext(c.Request().Context(), http.MethodPost, h.aiURL+"/analyze", c.Request().Body)
+	if err != nil {
+		return c.JSON(http.StatusBadGateway, errResponse{err.Error()})
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := aiClient.Do(req)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, errResponse{err.Error()})
 	}
@@ -174,12 +185,13 @@ func (h *Handler) Analyze(c echo.Context) error {
 	return c.Blob(resp.StatusCode, "application/json", body)
 }
 
-// notify publishes a flag-change event best-effort so evaluators refresh.
-func (h *Handler) notify(key, action string) {
+// notify publishes a flag-change event best-effort so evaluators refresh. The
+// request context carries the trace so the evaluator's consume is in the same trace.
+func (h *Handler) notify(c echo.Context, key, action string) {
 	if h.bus == nil {
 		return
 	}
-	if err := h.bus.PublishJSON(bus.SubjectFlagChanged, bus.FlagChanged{Key: key, Action: action}); err != nil {
+	if err := h.bus.PublishJSON(c.Request().Context(), bus.SubjectFlagChanged, bus.FlagChanged{Key: key, Action: action}); err != nil {
 		logger.Log.Error().Err(err).Str("flag", key).Msg("publish flag.changed")
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"golang.org/x/time/rate"
 
 	"github.com/mralaminahamed/flagcast/apps/gateway/internal/handler"
@@ -34,6 +35,7 @@ func New(s *store.FlagStore, pub handler.Publisher, aiURL string) *echo.Echo {
 	e.HideBanner = true
 	e.HidePort = true
 
+	e.Use(otelecho.Middleware("flagcast-gateway"))
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
 	// Log the path, not the full URI, so query params (incl. any api key) stay
