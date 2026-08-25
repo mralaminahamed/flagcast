@@ -1,4 +1,10 @@
-.PHONY: up down build test test-race lint fmt tidy
+.PHONY: up down build test test-race lint fmt tidy proto
+
+# Regenerate gRPC code from proto/ (needs buf + protoc-gen-go[-grpc] on PATH:
+# go install github.com/bufbuild/buf/cmd/buf@latest and the two gen plugins).
+proto:
+	buf lint
+	buf generate
 
 up:
 	docker compose -f infra/docker-compose.yml up -d
@@ -8,7 +14,7 @@ down:
 
 build:
 	@mkdir -p bin
-	@for svc in gateway; do go build -trimpath -o bin/$$svc ./apps/$$svc/cmd; done
+	@for svc in gateway evaluator; do go build -trimpath -o bin/$$svc ./apps/$$svc/cmd; done
 
 test:
 	go test ./...

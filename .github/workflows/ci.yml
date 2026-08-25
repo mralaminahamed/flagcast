@@ -20,7 +20,7 @@ jobs:
         run: go vet ./...
       - name: Build
         run: |
-          for svc in gateway; do go build -trimpath -o /tmp/$svc ./apps/$svc/cmd; done
+          for svc in gateway evaluator; do go build -trimpath -o /tmp/$svc ./apps/$svc/cmd; done
       - name: Test (race)
         run: CGO_ENABLED=1 go test -race ./...
 

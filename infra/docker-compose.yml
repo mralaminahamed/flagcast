@@ -86,6 +86,16 @@ services:
       timeout: 3s
       retries: 5
 
+  evaluator:
+    <<: *go-svc
+    container_name: flagcast-evaluator
+    command: ["go", "run", "./apps/evaluator/cmd"]
+    environment:
+      PORT: "8081"
+      GRPC_ADDR: ":50051"
+      MONGO_URI: mongodb://flagcast:flagcast@mongo:27017/flagcast?authSource=admin
+    ports: ["0.0.0.0:50051:50051"]
+
 volumes:
   mongo-data:
   redis-data:

@@ -39,6 +39,19 @@ make up                       # mongo, redis, nats, gateway
 curl localhost:8080/health
 ```
 
+## Go SDK
+
+```go
+c, _ := flagcast.Dial("localhost:50051")   // insecure by default; pass grpc opts for TLS
+defer c.Close()
+
+if c.BoolValue(ctx, "new-checkout", flagcast.Context{Key: userID}, false) {
+    // new flow — unknown flags / errors fall back to the default
+}
+```
+
+Regenerate gRPC code after editing `proto/`: `make proto`.
+
 ## Roadmap (phased, PR per phase)
 
 - **Phase 0** — monorepo skeleton, backing stores, gateway health stub, CI ✅
