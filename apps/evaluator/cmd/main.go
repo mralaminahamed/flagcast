@@ -18,6 +18,7 @@ import (
 
 	"github.com/mralaminahamed/flagcast/apps/evaluator/internal/evalsvc"
 	"github.com/mralaminahamed/flagcast/apps/evaluator/internal/flags"
+	"github.com/mralaminahamed/flagcast/apps/evaluator/internal/grpcauth"
 	"github.com/mralaminahamed/flagcast/apps/evaluator/internal/watch"
 	"github.com/mralaminahamed/flagcast/packages/shared/bus"
 	"github.com/mralaminahamed/flagcast/packages/shared/cache"
@@ -114,9 +115,20 @@ func main() {
 	}
 	// Closed on shutdown so open Watch streams end and GracefulStop can complete.
 	shutdownCh := make(chan struct{})
-	srv := grpc.NewServer(grpc.StatsHandler(otelgrpc.NewServerHandler()))
+	allowOpen := os.Getenv("ALLOW_OPEN_API") == "true"
+	auth := grpcauth.New(os.Getenv("EVALUATOR_API_KEY"), allowOpen)
+	if os.Getenv("EVALUATOR_API_KEY") == "" && !allowOpen {
+		logger.Log.Error().Msg("evaluator: EVALUATOR_API_KEY unset and ALLOW_OPEN_API!=true — gRPC refuses all calls")
+	}
+	srv := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(auth.Unary),
+		grpc.ChainStreamInterceptor(auth.Stream),
+	)
 	flagcastv1.RegisterEvaluatorServer(srv, evalsvc.New(repo, hub, shutdownCh))
-	reflection.Register(srv)
+	if allowOpen {
+		reflection.Register(srv) // introspection is a dev convenience; off in prod
+	}
 
 	go func() {
 		addr := health.AddrFromEnv(":8081")
