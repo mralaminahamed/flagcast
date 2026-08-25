@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6D5BFF"/>
+      <stop offset="1" stop-color="#4A2FE0"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="220" fill="url(#bg)"/>
+  <g fill="#ffffff">
+    <!-- flag pole -->
+    <rect x="372" y="300" width="44" height="440" rx="22"/>
+    <!-- finial (transmitter) -->
+    <circle cx="394" cy="300" r="30"/>
+    <!-- pennant -->
+    <path d="M416 336 L700 438 L416 540 Z"/>
+  </g>
+  <!-- broadcast fan from the finial -->
+  <g fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round" opacity="0.92">
+    <path d="M394 226 A70 70 0 0 1 464 296"/>
+    <path d="M394 166 A130 130 0 0 1 524 296"/>
+  </g>
+</svg>
