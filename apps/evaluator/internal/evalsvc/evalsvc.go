@@ -10,22 +10,29 @@ import (
 
 	"github.com/mralaminahamed/flagcast/packages/shared/eval"
 	flagcastv1 "github.com/mralaminahamed/flagcast/packages/shared/genproto/flagcast/v1"
+	"github.com/mralaminahamed/flagcast/packages/shared/models"
 	"github.com/mralaminahamed/flagcast/packages/shared/store"
 )
 
-// Server answers flag-evaluation RPCs, reading flag config from the store.
-type Server struct {
-	flagcastv1.UnimplementedEvaluatorServer
-	store *store.FlagStore
+// FlagSource supplies flags for evaluation (Mongo, or the cache-fronted repo).
+type FlagSource interface {
+	Get(ctx context.Context, key string) (models.Flag, error)
+	List(ctx context.Context) ([]models.Flag, error)
 }
 
-func New(s *store.FlagStore) *Server { return &Server{store: s} }
+// Server answers flag-evaluation RPCs, reading flag config from a FlagSource.
+type Server struct {
+	flagcastv1.UnimplementedEvaluatorServer
+	src FlagSource
+}
+
+func New(src FlagSource) *Server { return &Server{src: src} }
 
 func (s *Server) Evaluate(ctx context.Context, req *flagcastv1.EvaluateRequest) (*flagcastv1.EvaluateResponse, error) {
 	if req.GetFlagKey() == "" {
 		return nil, status.Error(codes.InvalidArgument, "flag_key is required")
 	}
-	f, err := s.store.Get(ctx, req.GetFlagKey())
+	f, err := s.src.Get(ctx, req.GetFlagKey())
 	if err != nil {
 		// An unknown flag is not an error to the caller — it evaluates to off.
 		if errors.Is(err, store.ErrNotFound) {
@@ -38,7 +45,7 @@ func (s *Server) Evaluate(ctx context.Context, req *flagcastv1.EvaluateRequest) 
 }
 
 func (s *Server) EvaluateAll(ctx context.Context, req *flagcastv1.EvaluateAllRequest) (*flagcastv1.EvaluateAllResponse, error) {
-	flags, err := s.store.List(ctx)
+	flags, err := s.src.List(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
