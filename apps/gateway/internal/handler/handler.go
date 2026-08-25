@@ -3,6 +3,7 @@ package handler
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,9 +24,12 @@ type Publisher interface {
 type Handler struct {
 	store *store.FlagStore
 	bus   Publisher // may be nil
+	aiURL string    // "" => analysis unavailable
 }
 
-func New(s *store.FlagStore, b Publisher) *Handler { return &Handler{store: s, bus: b} }
+func New(s *store.FlagStore, b Publisher, aiURL string) *Handler {
+	return &Handler{store: s, bus: b, aiURL: aiURL}
+}
 
 type errResponse struct {
 	Error string `json:"error"`
@@ -154,6 +158,20 @@ func (h *Handler) audit(c echo.Context, key, action string) {
 	}); err != nil {
 		logger.Log.Error().Err(err).Str("flag", key).Msg("append audit")
 	}
+}
+
+// Analyze forwards an analysis request to the ai service.
+func (h *Handler) Analyze(c echo.Context) error {
+	if h.aiURL == "" {
+		return c.JSON(http.StatusServiceUnavailable, errResponse{"analysis unavailable (AI_URL unset)"})
+	}
+	resp, err := http.Post(h.aiURL+"/analyze", "application/json", c.Request().Body)
+	if err != nil {
+		return c.JSON(http.StatusBadGateway, errResponse{err.Error()})
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	return c.Blob(resp.StatusCode, "application/json", body)
 }
 
 // notify publishes a flag-change event best-effort so evaluators refresh.

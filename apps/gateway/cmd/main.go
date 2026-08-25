@@ -36,7 +36,7 @@ func main() {
 	}
 
 	addr := health.AddrFromEnv(":8080")
-	if err := server.Run(st, pub, addr); err != nil {
+	if err := server.Run(st, pub, config.Env("AI_URL", ""), addr); err != nil {
 		logger.Log.Fatal().Err(err).Msg("gateway: run")
 	}
 }
