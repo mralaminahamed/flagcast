@@ -13,6 +13,12 @@ dist/
 PLAN.md
 ARCHITECTURE.md
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
 # OS / editor
 .DS_Store
 *.swp
