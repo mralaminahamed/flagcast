@@ -7,3 +7,5 @@ scrape_configs:
     static_configs:
       - targets: ["gateway:8080"]
         labels: { service: gateway }
+      - targets: ["evaluator:8081"]
+        labels: { service: evaluator }
