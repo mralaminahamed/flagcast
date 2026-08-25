@@ -57,8 +57,8 @@ Regenerate gRPC code after editing `proto/`: `make proto`.
 - **Phase 0** — monorepo skeleton, backing stores, gateway health stub, CI ✅
 - **Phase 1** — flag domain + REST admin CRUD (gateway + Mongo)
 - **Phase 2** — gRPC evaluator + proto + Go SDK client
-- **Phase 3** — Redis eval cache + NATS change stream → streaming SDK updates
-- **Phase 4** — React console
+- **Phase 3** — Redis eval cache + NATS change stream → streaming SDK updates ✅
+- **Phase 4** — React console (flag list, create/edit/toggle, rollout, audit) ✅
 - **Phase 5** — AI experiment analysis + MCP server
 - **Phase 6** — observability (metrics + tracing) + cloud IaC + CD
 ```
