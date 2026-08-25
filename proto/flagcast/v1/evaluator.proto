@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package flagcast.v1;
+
+option go_package = "github.com/mralaminahamed/flagcast/packages/shared/genproto/flagcast/v1;flagcastv1";
+
+// Context identifies the subject an evaluation is for. Key is the stable
+// identity used for deterministic percentage bucketing (e.g. a user id);
+// attributes are reserved for segment rules in a later phase.
+message Context {
+  string key = 1;
+  map<string, string> attributes = 2;
+}
+
+message EvaluateRequest {
+  string flag_key = 1;
+  Context context = 2;
+}
+
+message EvaluateResponse {
+  string flag_key = 1;
+  bool value = 2;
+  string reason = 3; // disabled | enabled | rollout | not_found
+}
+
+message EvaluateAllRequest {
+  Context context = 1;
+}
+
+message EvaluateAllResponse {
+  map<string, bool> values = 1;
+}
+
+// Evaluator serves flag decisions to SDK clients over gRPC.
+service Evaluator {
+  rpc Evaluate(EvaluateRequest) returns (EvaluateResponse);
+  rpc EvaluateAll(EvaluateAllRequest) returns (EvaluateAllResponse);
+}
