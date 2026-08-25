@@ -52,6 +52,19 @@ if c.BoolValue(ctx, "new-checkout", flagcast.Context{Key: userID}, false) {
 
 Regenerate gRPC code after editing `proto/`: `make proto`.
 
+## MCP server
+
+`apps/mcp` is a stdio MCP server exposing flags as tools an agent (e.g. Claude)
+can call — `list_flags`, `get_flag`, `create_flag`, `set_enabled`, `set_rollout`,
+`delete_flag` — all through the gateway REST API. Point an MCP client at:
+
+```json
+{
+  "command": "/path/to/bin/mcp",
+  "env": { "FLAGCAST_API": "http://localhost:8080", "FLAGCAST_API_KEY": "" }
+}
+```
+
 ## Roadmap (phased, PR per phase)
 
 - **Phase 0** — monorepo skeleton, backing stores, gateway health stub, CI ✅
@@ -59,6 +72,7 @@ Regenerate gRPC code after editing `proto/`: `make proto`.
 - **Phase 2** — gRPC evaluator + proto + Go SDK client
 - **Phase 3** — Redis eval cache + NATS change stream → streaming SDK updates ✅
 - **Phase 4** — React console (flag list, create/edit/toggle, rollout, audit) ✅
+- **Phase 5** — AI rollout analysis (stats + Claude) + MCP server ✅
 - **Phase 5** — AI experiment analysis + MCP server
 - **Phase 6** — observability (metrics + tracing) + cloud IaC + CD
 ```
