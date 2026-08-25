@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Sparkles, Trash2 } from "lucide-react";
 import type { Flag } from "../lib/types";
 import { ago } from "../lib/format";
 import { Toggle } from "./Toggle";
@@ -11,12 +11,14 @@ export function FlagRow({
   onToggle,
   onEdit,
   onDelete,
+  onAnalyze,
 }: {
   flag: Flag;
   busy?: boolean;
   onToggle: (next: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
+  onAnalyze: () => void;
 }) {
   return (
     <div className="group grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-line px-4 py-3 last:border-b-0 hover:bg-surface2/60 sm:grid-cols-[auto_2fr_1.5fr_auto]">
@@ -44,6 +46,13 @@ export function FlagRow({
       {/* controls */}
       <div className="flex items-center gap-3 justify-self-end">
         <span className="hidden font-mono text-[11px] text-muted md:inline">{ago(flag.updated_at)}</span>
+        <button
+          onClick={onAnalyze}
+          aria-label={`Analyze ${flag.key}`}
+          className="rounded p-1 text-muted opacity-0 transition hover:text-brand focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <Sparkles size={15} />
+        </button>
         <button
           onClick={onEdit}
           aria-label={`Edit ${flag.key}`}

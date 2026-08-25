@@ -16,6 +16,20 @@ export interface AuditEntry {
   timestamp: string;
 }
 
+export interface Analysis {
+  verdict: "ship" | "hold" | "iterate";
+  summary: string;
+  risks?: string[];
+  model?: string;
+  stats?: {
+    control_rate: number;
+    treatment_rate: number;
+    relative_lift: number;
+    p_value: number;
+    significant: boolean;
+  };
+}
+
 export interface FlagInput {
   key?: string;
   name: string;

@@ -79,6 +79,7 @@ services:
       MONGO_URI: mongodb://flagcast:flagcast@mongo:27017/flagcast?authSource=admin
       REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
+      AI_URL: http://ai:8090
     ports: ["0.0.0.0:8080:8080"]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
@@ -97,6 +98,16 @@ services:
       REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
     ports: ["0.0.0.0:50051:50051"]
+
+  ai:
+    <<: *go-svc
+    container_name: flagcast-ai
+    command: ["go", "run", "./apps/ai/cmd"]
+    environment:
+      PORT: "8090"
+      MONGO_URI: mongodb://flagcast:flagcast@mongo:27017/flagcast?authSource=admin
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
 
   console:
     image: node:24-alpine

@@ -1,4 +1,4 @@
-import type { AuditEntry, Flag, FlagInput } from "./types";
+import type { Analysis, AuditEntry, Flag, FlagInput } from "./types";
 
 const base = "/api";
 
@@ -31,4 +31,6 @@ export const api = {
   deleteFlag: (key: string) =>
     req<void>(`/flags/${encodeURIComponent(key)}`, { method: "DELETE" }),
   audit: (limit = 100) => req<{ audit: AuditEntry[] }>(`/audit?limit=${limit}`),
+  analyze: (flagKey: string) =>
+    req<Analysis>("/analyze", { method: "POST", body: JSON.stringify({ flag_key: flagKey }) }),
 };

@@ -6,6 +6,7 @@ import { useToasts } from "../lib/toast";
 import { Button, Empty, Input, Spinner } from "../components/ui";
 import { FlagRow } from "../components/FlagRow";
 import { FlagModal } from "../components/FlagModal";
+import { AnalyzeModal } from "../components/AnalyzeModal";
 
 type ModalState = { open: false } | { open: true; flag: Flag | null };
 
@@ -18,6 +19,7 @@ export function Flags() {
 
   const [filter, setFilter] = useState("");
   const [modal, setModal] = useState<ModalState>({ open: false });
+  const [analyzeKey, setAnalyzeKey] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const list = flags.data?.flags ?? [];
@@ -94,10 +96,13 @@ export function Flags() {
               onToggle={(next) => toggle(f, next)}
               onEdit={() => setModal({ open: true, flag: f })}
               onDelete={() => remove(f)}
+              onAnalyze={() => setAnalyzeKey(f.key)}
             />
           ))}
         </div>
       )}
+
+      {analyzeKey && <AnalyzeModal flagKey={analyzeKey} onClose={() => setAnalyzeKey(null)} />}
 
       {modal.open && (
         <FlagModal

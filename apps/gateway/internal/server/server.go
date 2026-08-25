@@ -28,8 +28,8 @@ const rateLimitPerSec = 20
 type Publisher = handler.Publisher
 
 // New builds a configured Echo instance with middleware and routes. pub may be
-// nil (flag-change events are then skipped).
-func New(s *store.FlagStore, pub handler.Publisher) *echo.Echo {
+// nil (flag-change events are then skipped); aiURL "" disables analysis.
+func New(s *store.FlagStore, pub handler.Publisher, aiURL string) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
@@ -52,7 +52,7 @@ func New(s *store.FlagStore, pub handler.Publisher) *echo.Echo {
 		e.Use(middleware.CORS())
 	}
 
-	h := handler.New(s, pub)
+	h := handler.New(s, pub, aiURL)
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, echo.Map{"status": "ok", "service": "gateway"})
@@ -77,13 +77,14 @@ func New(s *store.FlagStore, pub handler.Publisher) *echo.Echo {
 	api.PUT("/flags/:key", h.Update)
 	api.DELETE("/flags/:key", h.Delete)
 	api.GET("/audit", h.Audit)
+	api.POST("/analyze", h.Analyze)
 
 	return e
 }
 
 // Run starts the server and blocks until SIGINT/SIGTERM, then shuts down.
-func Run(s *store.FlagStore, pub handler.Publisher, addr string) error {
-	e := New(s, pub)
+func Run(s *store.FlagStore, pub handler.Publisher, aiURL, addr string) error {
+	e := New(s, pub, aiURL)
 	e.Server.ReadHeaderTimeout = 10 * time.Second
 	e.Server.ReadTimeout = 30 * time.Second
 	e.Server.IdleTimeout = 120 * time.Second
