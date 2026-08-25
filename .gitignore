@@ -8,6 +8,7 @@
 # Web
 node_modules/
 dist/
+.vite/
 
 # Planning docs (kept untracked)
 PLAN.md
