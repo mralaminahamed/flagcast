@@ -2,6 +2,7 @@
 package logger
 
 import (
+	"io"
 	"os"
 	"time"
 
@@ -12,7 +13,8 @@ import (
 var Log = zerolog.New(os.Stdout).With().Timestamp().Logger()
 
 type LoggerOptions struct {
-	Level string // debug|info|warn|error (default info)
+	Level  string // debug|info|warn|error (default info)
+	Stderr bool   // write to stderr instead of stdout (e.g. stdio MCP servers)
 }
 
 func InitLogger(opts LoggerOptions) {
@@ -21,5 +23,9 @@ func InitLogger(opts LoggerOptions) {
 		level = zerolog.InfoLevel
 	}
 	zerolog.TimeFieldFormat = time.RFC3339
-	Log = zerolog.New(os.Stdout).Level(level).With().Timestamp().Logger()
+	var w io.Writer = os.Stdout
+	if opts.Stderr {
+		w = os.Stderr
+	}
+	Log = zerolog.New(w).Level(level).With().Timestamp().Logger()
 }

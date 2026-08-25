@@ -14,7 +14,7 @@ down:
 
 build:
 	@mkdir -p bin
-	@for svc in gateway evaluator ai; do go build -trimpath -o bin/$$svc ./apps/$$svc/cmd; done
+	@for svc in gateway evaluator ai mcp; do go build -trimpath -o bin/$$svc ./apps/$$svc/cmd; done
 
 test:
 	go test ./...
