@@ -11,7 +11,10 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/mralaminahamed/flagcast/packages/shared/metrics"
 	"github.com/mralaminahamed/flagcast/packages/shared/models"
 	"github.com/mralaminahamed/flagcast/packages/shared/stats"
 )
@@ -65,15 +68,20 @@ func (a *Analyzer) Analyze(ctx context.Context, req Request) (Recommendation, er
 	rec := ruleBased(req, st)
 	rec.Stats = st
 
-	if a.client == nil {
-		return rec, nil
+	if a.client != nil {
+		// Claude refines verdict/summary/risks; on any failure keep the rule-based rec.
+		if refined, err := a.askClaude(ctx, req, st); err == nil {
+			refined.Stats = st
+			refined.Model = a.model
+			rec = refined
+		}
 	}
-	// Claude refines verdict/summary/risks; on any failure keep the rule-based rec.
-	if refined, err := a.askClaude(ctx, req, st); err == nil {
-		refined.Stats = st
-		refined.Model = a.model
-		return refined, nil
+
+	mode := "rule"
+	if rec.Model != "" {
+		mode = "claude"
 	}
+	metrics.Analyses.WithLabelValues(rec.Verdict, mode).Inc()
 	return rec, nil
 }
 
@@ -119,6 +127,10 @@ func (a *Analyzer) askClaude(ctx context.Context, req Request, st *stats.Result)
 		"experiment stats, recommend whether to ship, hold, or iterate. Respond with ONLY a JSON object: " +
 		`{"verdict":"ship|hold|iterate","summary":"one or two sentences","risks":["..."]}. No prose outside the JSON.`
 
+	ctx, span := otel.Tracer("ai").Start(ctx, "claude.analyze")
+	span.SetAttributes(attribute.String("model", a.model))
+	defer span.End()
+
 	adaptive := anthropic.ThinkingConfigAdaptiveParam{}
 	resp, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(a.model),
@@ -130,6 +142,7 @@ func (a *Analyzer) askClaude(ctx context.Context, req Request, st *stats.Result)
 		},
 	})
 	if err != nil {
+		span.RecordError(err)
 		return Recommendation{}, err
 	}
 

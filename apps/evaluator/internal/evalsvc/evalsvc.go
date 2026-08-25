@@ -10,6 +10,7 @@ import (
 
 	"github.com/mralaminahamed/flagcast/packages/shared/eval"
 	flagcastv1 "github.com/mralaminahamed/flagcast/packages/shared/genproto/flagcast/v1"
+	"github.com/mralaminahamed/flagcast/packages/shared/metrics"
 	"github.com/mralaminahamed/flagcast/packages/shared/models"
 	"github.com/mralaminahamed/flagcast/packages/shared/store"
 )
@@ -46,11 +47,13 @@ func (s *Server) Evaluate(ctx context.Context, req *flagcastv1.EvaluateRequest) 
 	if err != nil {
 		// An unknown flag is not an error to the caller — it evaluates to off.
 		if errors.Is(err, store.ErrNotFound) {
+			metrics.Evaluations.WithLabelValues("not_found").Inc()
 			return &flagcastv1.EvaluateResponse{FlagKey: req.GetFlagKey(), Value: false, Reason: "not_found"}, nil
 		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	value, reason := eval.Evaluate(f, req.GetContext().GetKey())
+	metrics.Evaluations.WithLabelValues(reason).Inc()
 	return &flagcastv1.EvaluateResponse{FlagKey: f.Key, Value: value, Reason: reason}, nil
 }
 
@@ -62,7 +65,8 @@ func (s *Server) EvaluateAll(ctx context.Context, req *flagcastv1.EvaluateAllReq
 	ctxKey := req.GetContext().GetKey()
 	values := make(map[string]bool, len(flags))
 	for _, f := range flags {
-		v, _ := eval.Evaluate(f, ctxKey)
+		v, reason := eval.Evaluate(f, ctxKey)
+		metrics.Evaluations.WithLabelValues(reason).Inc()
 		values[f.Key] = v
 	}
 	return &flagcastv1.EvaluateAllResponse{Values: values}, nil

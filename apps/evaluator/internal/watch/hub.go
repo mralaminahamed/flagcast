@@ -10,6 +10,7 @@ import (
 	"github.com/mralaminahamed/flagcast/packages/shared/eval"
 	flagcastv1 "github.com/mralaminahamed/flagcast/packages/shared/genproto/flagcast/v1"
 	"github.com/mralaminahamed/flagcast/packages/shared/logger"
+	"github.com/mralaminahamed/flagcast/packages/shared/metrics"
 	"github.com/mralaminahamed/flagcast/packages/shared/models"
 )
 
@@ -51,10 +52,12 @@ func (h *Hub) Register(contextKey string) (ch <-chan *flagcastv1.FlagChange, unr
 	h.seq++
 	w := &watcher{contextKey: contextKey, ch: make(chan *flagcastv1.FlagChange, 16)}
 	h.m[id] = w
+	metrics.WatchStreams.Inc()
 	return w.ch, func() {
 		h.mu.Lock()
 		delete(h.m, id)
 		h.mu.Unlock()
+		metrics.WatchStreams.Dec()
 	}, true
 }
 
@@ -89,6 +92,7 @@ func (h *Hub) Broadcast(ctx context.Context, evt bus.FlagChanged) {
 		select {
 		case w.ch <- fc:
 		default:
+			metrics.WatchDrops.Inc()
 			logger.Log.Warn().Str("flag", evt.Key).Msg("watch: dropping update to slow client")
 		}
 	}
