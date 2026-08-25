@@ -41,6 +41,9 @@ jobs:
         env:
           TF_VAR_image_tag: ${{ inputs.image_tag }}
           TF_VAR_docdb_password: ${{ secrets.DOCDB_PASSWORD }}
+          TF_VAR_redis_auth_token: ${{ secrets.REDIS_AUTH_TOKEN }}
           TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           TF_VAR_gateway_api_key: ${{ secrets.GATEWAY_API_KEY }}
+          TF_VAR_evaluator_api_key: ${{ secrets.EVALUATOR_API_KEY }}
+          TF_VAR_acm_certificate_arn: ${{ vars.ACM_CERTIFICATE_ARN }}
         run: terraform apply -auto-approve

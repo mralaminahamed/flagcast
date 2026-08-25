@@ -14,10 +14,11 @@ resource "aws_service_discovery_private_dns_namespace" "main" {
 
 locals {
   mongo_uri = "mongodb://flagcast:${var.docdb_password}@${aws_docdb_cluster.main.endpoint}:27017/flagcast?tls=true&retryWrites=false"
-  redis_url = "redis://${aws_elasticache_cluster.redis.cache_nodes[0].address}:6379/0"
+  redis_url = "rediss://:${var.redis_auth_token}@${aws_elasticache_replication_group.redis.primary_endpoint_address}:6379/0"
   nats_url  = "nats://nats.flagcast.local:4222"
 
   # One entry per Fargate service. `lb = true` puts it behind the ALB.
+  # env = plaintext; secrets = injected from Secrets Manager (valueFrom).
   services = {
     nats = {
       image       = "nats:2-alpine"
@@ -29,6 +30,7 @@ locals {
       health_path = ""
       extra_ports = []
       env         = {}
+      secrets     = {}
     }
     gateway = {
       image       = "${var.image_registry}/gateway:${var.image_tag}"
@@ -40,12 +42,14 @@ locals {
       health_path = "/health"
       extra_ports = []
       env = {
-        PORT            = "8080"
-        MONGO_URI       = local.mongo_uri
-        REDIS_URL       = local.redis_url
-        NATS_URL        = local.nats_url
-        AI_URL          = "http://ai.flagcast.local:8090"
-        GATEWAY_API_KEY = var.gateway_api_key
+        PORT     = "8080"
+        NATS_URL = local.nats_url
+        AI_URL   = "http://ai.flagcast.local:8090"
+      }
+      secrets = {
+        MONGO_URI       = aws_secretsmanager_secret.app["mongo-uri"].arn
+        GATEWAY_API_KEY = aws_secretsmanager_secret.app["gateway-api-key"].arn
+        REDIS_URL       = aws_secretsmanager_secret.app["redis-url"].arn
       }
     }
     evaluator = {
@@ -60,9 +64,12 @@ locals {
       env = {
         PORT      = "8081"
         GRPC_ADDR = ":50051"
-        MONGO_URI = local.mongo_uri
-        REDIS_URL = local.redis_url
         NATS_URL  = local.nats_url
+      }
+      secrets = {
+        MONGO_URI         = aws_secretsmanager_secret.app["mongo-uri"].arn
+        EVALUATOR_API_KEY = aws_secretsmanager_secret.app["evaluator-api-key"].arn
+        REDIS_URL         = aws_secretsmanager_secret.app["redis-url"].arn
       }
     }
     ai = {
@@ -75,9 +82,11 @@ locals {
       health_path = "/health"
       extra_ports = []
       env = {
-        PORT              = "8090"
-        MONGO_URI         = local.mongo_uri
-        ANTHROPIC_API_KEY = var.anthropic_api_key
+        PORT = "8090"
+      }
+      secrets = {
+        MONGO_URI         = aws_secretsmanager_secret.app["mongo-uri"].arn
+        ANTHROPIC_API_KEY = aws_secretsmanager_secret.app["anthropic-api-key"].arn
       }
     }
   }
@@ -125,6 +134,7 @@ resource "aws_ecs_task_definition" "svc" {
         { containerPort = p, protocol = "tcp" }
       ]
       environment = [for k, v in each.value.env : { name = k, value = v }]
+      secrets     = [for k, arn in each.value.secrets : { name = k, valueFrom = arn }]
       # ECS-level container health check (services expose /health; nats has none).
       healthCheck = each.value.health_path == "" ? null : {
         command     = ["CMD-SHELL", "wget -qO- http://localhost:${each.value.port}${each.value.health_path} || exit 1"]
