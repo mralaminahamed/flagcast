@@ -63,6 +63,31 @@ func (c *Client) BoolValue(ctx context.Context, flagKey string, ec Context, def 
 	return v
 }
 
+// Change is a streamed flag update delivered to a Watch callback.
+type Change struct {
+	FlagKey string
+	Value   bool
+	Reason  string
+	Deleted bool
+}
+
+// Watch streams flag changes for the context, invoking fn for the initial
+// snapshot and every subsequent change. It blocks until ctx is cancelled or the
+// stream errors, so callers typically run it in a goroutine.
+func (c *Client) Watch(ctx context.Context, ec Context, fn func(Change)) error {
+	stream, err := c.c.Watch(ctx, &flagcastv1.WatchRequest{Context: ec.proto()})
+	if err != nil {
+		return err
+	}
+	for {
+		fc, err := stream.Recv()
+		if err != nil {
+			return err // io.EOF / context cancellation ends the watch
+		}
+		fn(Change{FlagKey: fc.GetFlagKey(), Value: fc.GetValue(), Reason: fc.GetReason(), Deleted: fc.GetDeleted()})
+	}
+}
+
 // AllValues evaluates every flag for the context.
 func (c *Client) AllValues(ctx context.Context, ec Context) (map[string]bool, error) {
 	resp, err := c.c.EvaluateAll(ctx, &flagcastv1.EvaluateAllRequest{Context: ec.proto()})
