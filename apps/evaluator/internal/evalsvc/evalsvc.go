@@ -20,13 +20,20 @@ type FlagSource interface {
 	List(ctx context.Context) ([]models.Flag, error)
 }
 
+// Watchers registers a Watch stream and returns its change channel plus an
+// unregister func.
+type Watchers interface {
+	Register(contextKey string) (<-chan *flagcastv1.FlagChange, func())
+}
+
 // Server answers flag-evaluation RPCs, reading flag config from a FlagSource.
 type Server struct {
 	flagcastv1.UnimplementedEvaluatorServer
 	src FlagSource
+	hub Watchers // may be nil (Watch unavailable)
 }
 
-func New(src FlagSource) *Server { return &Server{src: src} }
+func New(src FlagSource, hub Watchers) *Server { return &Server{src: src, hub: hub} }
 
 func (s *Server) Evaluate(ctx context.Context, req *flagcastv1.EvaluateRequest) (*flagcastv1.EvaluateResponse, error) {
 	if req.GetFlagKey() == "" {
@@ -56,4 +63,39 @@ func (s *Server) EvaluateAll(ctx context.Context, req *flagcastv1.EvaluateAllReq
 		values[f.Key] = v
 	}
 	return &flagcastv1.EvaluateAllResponse{Values: values}, nil
+}
+
+// Watch streams a snapshot of all flag values for the request's context, then
+// pushes a FlagChange whenever a flag changes, until the client disconnects.
+func (s *Server) Watch(req *flagcastv1.WatchRequest, stream flagcastv1.Evaluator_WatchServer) error {
+	if s.hub == nil {
+		return status.Error(codes.Unavailable, "watch not enabled")
+	}
+	ctxKey := req.GetContext().GetKey()
+
+	// Register before the snapshot so no change is missed between them.
+	ch, unregister := s.hub.Register(ctxKey)
+	defer unregister()
+
+	flags, err := s.src.List(stream.Context())
+	if err != nil {
+		return status.Error(codes.Internal, err.Error())
+	}
+	for _, f := range flags {
+		v, reason := eval.Evaluate(f, ctxKey)
+		if err := stream.Send(&flagcastv1.FlagChange{FlagKey: f.Key, Value: v, Reason: reason}); err != nil {
+			return err
+		}
+	}
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case fc := <-ch:
+			if err := stream.Send(fc); err != nil {
+				return err
+			}
+		}
+	}
 }

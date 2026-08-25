@@ -16,6 +16,7 @@ import (
 
 	"github.com/mralaminahamed/flagcast/apps/evaluator/internal/evalsvc"
 	"github.com/mralaminahamed/flagcast/apps/evaluator/internal/flags"
+	"github.com/mralaminahamed/flagcast/apps/evaluator/internal/watch"
 	"github.com/mralaminahamed/flagcast/packages/shared/bus"
 	"github.com/mralaminahamed/flagcast/packages/shared/cache"
 	"github.com/mralaminahamed/flagcast/packages/shared/config"
@@ -52,6 +53,7 @@ func main() {
 	if err := repo.Warm(ctx); err != nil {
 		logger.Log.Warn().Err(err).Msg("evaluator: cache warm failed (continuing)")
 	}
+	hub := watch.NewHub(repo)
 
 	if url := config.Env("NATS_URL", ""); url != "" {
 		if b, err := bus.Connect(url); err != nil {
@@ -64,7 +66,9 @@ func main() {
 				if json.Unmarshal(data, &evt) != nil {
 					return
 				}
+				// Refresh the cache first, then fan out re-evaluated values.
 				repo.OnChange(context.Background(), evt)
+				hub.Broadcast(context.Background(), evt)
 			})
 			if err != nil {
 				logger.Log.Warn().Err(err).Msg("evaluator: subscribe flag.changed")
@@ -78,7 +82,7 @@ func main() {
 		logger.Log.Fatal().Err(err).Str("addr", grpcAddr).Msg("evaluator: listen")
 	}
 	srv := grpc.NewServer()
-	flagcastv1.RegisterEvaluatorServer(srv, evalsvc.New(repo))
+	flagcastv1.RegisterEvaluatorServer(srv, evalsvc.New(repo, hub))
 	reflection.Register(srv)
 
 	go func() {
