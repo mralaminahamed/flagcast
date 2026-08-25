@@ -9,3 +9,5 @@ scrape_configs:
         labels: { service: gateway }
       - targets: ["evaluator:8081"]
         labels: { service: evaluator }
+      - targets: ["ai:8090"]
+        labels: { service: ai }
