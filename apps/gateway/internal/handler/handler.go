@@ -8,17 +8,24 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
+	"github.com/mralaminahamed/flagcast/packages/shared/bus"
 	"github.com/mralaminahamed/flagcast/packages/shared/logger"
 	"github.com/mralaminahamed/flagcast/packages/shared/models"
 	"github.com/mralaminahamed/flagcast/packages/shared/store"
 	"github.com/mralaminahamed/flagcast/packages/shared/validation"
 )
 
-type Handler struct {
-	store *store.FlagStore
+// Publisher emits flag-change events so evaluators can refresh their cache.
+type Publisher interface {
+	PublishJSON(subject string, v any) error
 }
 
-func New(s *store.FlagStore) *Handler { return &Handler{store: s} }
+type Handler struct {
+	store *store.FlagStore
+	bus   Publisher // may be nil
+}
+
+func New(s *store.FlagStore, b Publisher) *Handler { return &Handler{store: s, bus: b} }
 
 type errResponse struct {
 	Error string `json:"error"`
@@ -81,6 +88,7 @@ func (h *Handler) Create(c echo.Context) error {
 		return h.storeErr(c, err)
 	}
 	h.audit(c, f.Key, "created")
+	h.notify(f.Key, "created")
 	return c.JSON(http.StatusCreated, f)
 }
 
@@ -110,6 +118,7 @@ func (h *Handler) Update(c echo.Context) error {
 		return h.storeErr(c, err)
 	}
 	h.audit(c, key, "updated")
+	h.notify(key, "updated")
 	return c.JSON(http.StatusOK, f)
 }
 
@@ -120,6 +129,7 @@ func (h *Handler) Delete(c echo.Context) error {
 		return h.storeErr(c, err)
 	}
 	h.audit(c, key, "deleted")
+	h.notify(key, "deleted")
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -143,6 +153,16 @@ func (h *Handler) audit(c echo.Context, key, action string) {
 		FlagKey: key, Action: action, Actor: actor,
 	}); err != nil {
 		logger.Log.Error().Err(err).Str("flag", key).Msg("append audit")
+	}
+}
+
+// notify publishes a flag-change event best-effort so evaluators refresh.
+func (h *Handler) notify(key, action string) {
+	if h.bus == nil {
+		return
+	}
+	if err := h.bus.PublishJSON(bus.SubjectFlagChanged, bus.FlagChanged{Key: key, Action: action}); err != nil {
+		logger.Log.Error().Err(err).Str("flag", key).Msg("publish flag.changed")
 	}
 }
 
