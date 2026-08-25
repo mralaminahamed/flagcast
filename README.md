@@ -1,58 +1,135 @@
-<img src="assets/icon-256.png" width="104" align="right" alt="flagcast logo"/>
+<div align="center">
 
-# flagcast
+<img src="assets/icon-256.png" alt="flagcast icon" width="96" height="96">
 
-A feature-flag & experimentation platform — event-driven Go microservices, a
-low-latency **gRPC** evaluation SDK, a React/TypeScript console, and
-Claude-powered rollout analysis with an **MCP** server.
+# flagcast — Developer Guide
 
-Flags live in MongoDB, are cached in Redis, and every change **broadcasts** over
-NATS so evaluators and SDK clients update in near-real-time.
+**Ship features safely — a feature-flag & experimentation platform where flags live in MongoDB, cache in Redis, evaluate over low-latency gRPC, and broadcast every change across Go microservices on NATS, with a React console and Claude-powered rollout analysis.**
 
-> Sibling to [sitemon](https://github.com/mralaminahamed/sitemon). flagcast
-> deliberately covers what sitemon left out: a real gRPC surface, a cloud
-> deployment, and distributed tracing.
+[![Go](https://img.shields.io/badge/Go-1.27-00ADD8.svg?logo=go&logoColor=white)](https://go.dev/)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
+[![gRPC](https://img.shields.io/badge/gRPC-Protobuf-244c5a.svg?logo=grpc&logoColor=white)](https://grpc.io/)
+[![NATS](https://img.shields.io/badge/NATS-pub%2Fsub-27AAE1.svg?logo=natsdotio&logoColor=white)](https://nats.io/)
+[![Anthropic](https://img.shields.io/badge/Claude-opus--5-D4A27F.svg?logo=anthropic&logoColor=white)](https://docs.anthropic.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+</div>
+
+## What it is
+
+A feature-flag system is rarely one process. Something stores the flags and who
+changed them, something evaluates them for a given user at very low latency,
+something has to tell every running copy the instant a flag flips, and a person
+wants to toggle and roll out from a screen. flagcast models that split as it
+really is: independent Go services that talk over a message bus and a typed gRPC
+contract, each doing one job and surviving the others being restarted.
+
+The `gateway` is the control plane — a REST API to create, edit, toggle, and
+roll out flags, with an audit trail — and it publishes a `flag.changed` event on
+every mutation. The `evaluator` is the data plane: SDK clients call it over gRPC
+for a flag decision (a deterministic percentage bucketing), it serves from a
+Redis cache fronted over MongoDB, and it refreshes that cache from the NATS
+stream — plus a periodic re-sync so a missed event never leaves a decision stale.
+Clients can also open a `Watch` stream and get pushed updates. An `ai` service
+runs A/B statistics and — when a key is present — asks Claude whether to ship,
+hold, or iterate; an `mcp` server exposes the same flag operations as tools an
+agent can call.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  Console["React console"] -->|REST| GW["gateway (Echo)"]
-  SDK["Go SDK"] -->|gRPC| EV["evaluator"]
-  MCP["MCP server"] -->|REST| GW
-  GW -->|CRUD + audit| M[("MongoDB")]
-  GW -->|flag.changed| N(("NATS"))
-  GW -->|/analyze| AI["ai service"]
-  N -->|refresh| EV
-  EV -->|cache| R[("Redis")]
-  EV -->|source of truth| M
-  EV -.->|Watch stream| SDK
-  AI -->|Claude| ANT{{"Anthropic"}}
-  AI --> M
+flowchart TD
+  console["React + TS console"] -->|REST /api| gw["gateway (Echo)"]
+  sdk["Go SDK"] -->|gRPC| eval["evaluator"]
+  mcp["MCP server"] -->|REST /api| gw
+  gw -->|flag CRUD + audit| mongo[("MongoDB")]
+  gw -->|flag.changed| nats(("NATS"))
+  gw -->|/api/analyze| ai
+  nats -->|refresh| eval
+  eval --> redis[("Redis")]
+  eval -->|source of truth| mongo
+  eval -.->|Watch stream| sdk
+  ai --> mongo
+  ai -.->|ship / hold / iterate| claude["Claude API"]
+  gw -->|/metrics| prom["Prometheus"]
 ```
 
-- **gateway** — REST admin API for flags + audit + `/analyze`; publishes `flag.changed`.
-- **evaluator** — gRPC `Evaluate`/`EvaluateAll`/`Watch`; Redis-cached, refreshed from NATS, periodic re-sync so a missed event never leaves the cache stale.
-- **ai** — deterministic A/B stats (two-proportion z-test) + a Claude ship/hold/iterate recommendation (rule-based fallback with no key).
-- **mcp** — stdio MCP server exposing flag tools to an agent, via the gateway.
-- **console** — the switchboard UI: toggle flags, set rollouts, view audit, run analysis.
+```
+apps/
+├── gateway/    Echo REST + audit, /metrics — flag CRUD, publishes flag.changed
+├── evaluator/  gRPC Evaluate/EvaluateAll/Watch — Redis cache over Mongo, NATS refresh
+├── ai/         A/B stats + Claude ship/hold/iterate (/analyze)
+├── mcp/        stdio MCP server: list_flags, get_flag, create_flag, set_enabled…
+└── console/    Vite + React 19 + TypeScript admin console
 
-## Stack
+packages/
+├── sdk/            Go SDK — Dial, BoolValue, Evaluate, Watch
+└── shared/         store (Mongo) · cache (Redis) · bus (NATS) · eval · stats
+                    models · config · logger · health · metrics · tracing · validation
+proto/flagcast/v1/  gRPC contract (buf-generated stubs committed)
 
-Go 1.27 · gRPC + Protobuf (buf) · Echo · NATS · MongoDB · Redis · OpenTelemetry ·
-Prometheus + Grafana · React 19 + TypeScript + Vite + Tailwind v4 · Anthropic SDK ·
-Docker · GitHub Actions · Terraform (AWS ECS Fargate).
+infra/              docker-compose.yml · prometheus · grafana · terraform (AWS)
+```
 
-## Quick start
+Single Go module; each `apps/<service>/cmd` compiles to its own binary.
+
+## Features
+
+**Flags & evaluation**
+- Flag model — key, name, description, enabled, rollout %, tags, timestamps
+- **Deterministic bucketing** — stable fnv hash of `flagKey:contextKey`, independent per flag
+- **gRPC SDK** — `Evaluate` / `EvaluateAll`, unknown flags fall back to the caller default
+- **Watch stream** — server pushes re-evaluated changes to SDK clients in near-real-time
+- Change history / audit trail in MongoDB (TTL-bounded)
+
+**Distributed by design**
+- NATS `flag.changed` events fan changes out to every evaluator
+- Redis flag cache fronting Mongo, warmed at startup and **periodically re-synced** so a
+  dropped event never leaves a decision permanently stale
+- Graceful degradation — no Redis → Mongo reads; no NATS → cache still re-syncs
+
+**AI**
+- **A/B statistics** — two-proportion z-test (lift, p-value, significance)
+- **Claude analysis** via the Anthropic Go SDK (`claude-opus-5`), gated on
+  `ANTHROPIC_API_KEY` with a deterministic rule-based fallback without one
+- **MCP server** exposing flag tools (`list_flags`, `set_rollout`, …) to any MCP client
+
+**Console**
+- React 19 + TypeScript "switchboard" — toggle, rollout meter, create/edit, audit
+- Per-flag AI analysis, API-key settings, theme-aware light/dark
+
+**Security**
+- Gateway `/api` and evaluator gRPC **fail closed** — no key means requests are refused
+- gRPC `x-api-key` auth, reflection off in prod; rate limit, body limit, server timeouts
+
+**Operations**
+- Prometheus metrics on every service; **OpenTelemetry** traces across HTTP/gRPC/NATS
+- Grafana dashboard + alert rules; images to GHCR; Terraform for AWS ECS Fargate
+
+## Requirements
+
+- Go 1.27+
+- Docker (for the local stack: MongoDB, Redis, NATS)
+- Node 24 + pnpm (only to develop the console)
+- `buf` + `protoc-gen-go` / `protoc-gen-go-grpc` (only to regenerate gRPC stubs)
+- An `ANTHROPIC_API_KEY` is optional — the AI service runs without one
+
+## Installation
 
 ```bash
+git clone https://github.com/mralaminahamed/flagcast.git
+cd flagcast
 cp .env.example .env
-make up                       # mongo, redis, nats, gateway, evaluator, ai, console
-curl localhost:8080/health
-open http://localhost:5173    # console
+make up
 ```
 
-Observability profile (Jaeger + Prometheus + Grafana):
+`make up` brings up MongoDB, Redis, NATS and every service. Then:
+
+- Console — http://localhost:5173
+- API — http://localhost:8080
+- Evaluator gRPC — localhost:50051
+- Metrics — http://localhost:8081/metrics (evaluator), :8080/metrics (gateway)
+- Observability (Jaeger + Prometheus + Grafana):
 
 ```bash
 OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317 \
@@ -60,71 +137,82 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317 \
 # Jaeger :16686 · Prometheus :9099 · Grafana :3099
 ```
 
-## Go SDK
+## Development
 
-```go
-c, _ := flagcast.Dial("localhost:50051")   // insecure by default; pass grpc opts for TLS
-defer c.Close()
-
-if c.BoolValue(ctx, "new-checkout", flagcast.Context{Key: userID}, false) {
-    // new flow — unknown flags / errors fall back to the default
-}
-
-// live updates pushed over the Watch stream
-go c.Watch(ctx, flagcast.Context{Key: userID}, func(ch flagcast.Change) { /* ... */ })
+```bash
+make build         # build every service binary
+make test          # go test ./...
+make test-race     # CGO_ENABLED=1 go test -race ./...
+make lint          # go vet + gofmt check
+make proto         # regenerate gRPC stubs from proto/
 ```
 
-Set `FLAGCAST_API_KEY` to authenticate to a secured evaluator. Regenerate gRPC
-stubs after editing `proto/`: `make proto`.
+Full gate before committing:
 
-## MCP server
-
-`apps/mcp` is a stdio MCP server exposing flags as tools an agent (e.g. Claude)
-can call — `list_flags`, `get_flag`, `create_flag`, `set_enabled`, `set_rollout`,
-`delete_flag` — all through the gateway REST API. Point an MCP client at:
-
-```json
-{
-  "command": "/path/to/bin/mcp",
-  "env": { "FLAGCAST_API": "http://localhost:8080", "FLAGCAST_API_KEY": "" }
-}
+```bash
+gofmt -l apps packages && go vet ./... && go build ./... && CGO_ENABLED=1 go test -race ./...
 ```
 
-## Observability
+CI (`.github/workflows/ci.yml`) runs the same gate plus `govulncheck` and the
+console type-check/build on every push and PR; `.github/workflows/images.yml`
+builds and pushes service + console images to GHCR on `trunk` and version tags.
 
-- **Metrics** on every service (`/metrics`): evaluations by reason, cache hit/miss,
-  flag changes processed, active Watch streams, dropped updates, analyses by verdict,
-  plus gateway HTTP RED.
-- **Distributed tracing** (OpenTelemetry) across HTTP, gRPC, and NATS — a single
-  trace follows a flag change gateway → NATS → evaluator, and the Claude call is a span.
-- **Grafana dashboard** ("flagcast — Platform Overview") + **Prometheus alert rules**
-  (service down, gateway error rate/latency, unknown-flag rate, watch drops).
+### API
 
-## Security
+Namespace `/api`. Set `GATEWAY_API_KEY` (sent as `X-API-Key`) to authenticate;
+without it, `/api` fails closed unless `ALLOW_OPEN_API=true`.
 
-- Gateway `/api` and the evaluator gRPC **fail closed** — no key configured means
-  requests are refused (set `ALLOW_OPEN_API=true` for local dev).
-- gRPC auth via `x-api-key`; reflection is off in prod.
-- Rate limit, 1MB body limit, server timeouts, API key redacted from access logs.
-- In AWS: secrets in Secrets Manager, DocumentDB + Redis encryption (at rest and
-  in transit), optional HTTPS at the ALB.
+| Method | Route | Purpose |
+|--------|-------|---------|
+| GET | `/health` · `/ready` | Liveness · readiness |
+| GET | `/api/flags` | List flags |
+| POST | `/api/flags` | Create a flag |
+| GET | `/api/flags/:key` | Get one flag |
+| PUT | `/api/flags/:key` | Update a flag |
+| DELETE | `/api/flags/:key` | Delete a flag |
+| GET | `/api/audit?flag=&limit=` | Change history |
+| POST | `/api/analyze` | AI rollout analysis (ship/hold/iterate) |
+| GET | `/metrics` | Prometheus exposition |
+
+### gRPC (evaluator)
+
+Service `flagcast.v1.Evaluator` on `:50051` — contract in
+[`proto/flagcast/v1/evaluator.proto`](proto/flagcast/v1/evaluator.proto).
+
+| RPC | Purpose |
+|-----|---------|
+| `Evaluate` | Decide one flag for a context |
+| `EvaluateAll` | Decide every flag for a context |
+| `Watch` | Stream a snapshot then live changes |
+
+### Event bus
+
+| Subject | Producer | Consumer |
+|---------|----------|----------|
+| `flag.changed` | gateway | evaluator |
 
 ## Deploy
 
-- **Images:** `.github/workflows/images.yml` builds every service + the console to
-  GHCR on push to `trunk` and on tags.
-- **Cloud:** `infra/terraform` provisions AWS ECS Fargate (ALB, Cloud Map, DocumentDB,
-  ElastiCache, ECR, health checks + deployment circuit breaker). See its README.
-- **CD:** `.github/workflows/deploy.yml` runs `terraform apply` on manual dispatch
-  via AWS OIDC (secrets + a remote Terraform backend required).
+- **Local dev** — `make up` (`infra/docker-compose.yml`)
+- **Cloud (AWS ECS Fargate)** — `infra/terraform` (see its [README](infra/terraform/README.md))
+- **CD** — `.github/workflows/deploy.yml` runs `terraform apply` on manual dispatch via AWS OIDC
 
-## Layout
+## Contributing
+
+Branch from `trunk`, keep the full gate green, and open a pull request.
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-apps/{gateway,evaluator,ai,mcp,console}
-packages/
-  shared/{store,cache,bus,eval,stats,validation,models,config,logger,health,metrics,tracing}
-  sdk/                         # Go SDK
-proto/flagcast/v1/             # gRPC contract (buf)
-infra/{docker-compose.yml,prometheus,grafana,terraform}
+type(scope): description
 ```
+
+Types `feat` `fix` `docs` `refactor` `perf` `test` `build` `ci` `chore` ·
+scopes `gateway` `evaluator` `ai` `mcp` `console` `infra`.
+
+Merge with a merge commit (not squash) so scoped commits stay in history.
+Conventions in full: [`CLAUDE.md`](CLAUDE.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
