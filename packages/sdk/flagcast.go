@@ -7,10 +7,12 @@ package flagcast
 
 import (
 	"context"
+	"os"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	flagcastv1 "github.com/mralaminahamed/flagcast/packages/shared/genproto/flagcast/v1"
 )
@@ -40,11 +42,30 @@ func Dial(addr string, opts ...grpc.DialOption) (*Client, error) {
 	}
 	// Propagate trace context to the evaluator on every call.
 	opts = append(opts, grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
+	// Send the API key (from FLAGCAST_API_KEY) as x-api-key metadata when set.
+	if key := os.Getenv("FLAGCAST_API_KEY"); key != "" {
+		opts = append(opts,
+			grpc.WithChainUnaryInterceptor(apiKeyUnary(key)),
+			grpc.WithChainStreamInterceptor(apiKeyStream(key)),
+		)
+	}
 	conn, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{conn: conn, c: flagcastv1.NewEvaluatorClient(conn)}, nil
+}
+
+func apiKeyUnary(key string) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		return invoker(metadata.AppendToOutgoingContext(ctx, "x-api-key", key), method, req, reply, cc, opts...)
+	}
+}
+
+func apiKeyStream(key string) grpc.StreamClientInterceptor {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		return streamer(metadata.AppendToOutgoingContext(ctx, "x-api-key", key), desc, cc, method, opts...)
+	}
 }
 
 // Evaluate returns the decision and its reason, surfacing transport errors.
