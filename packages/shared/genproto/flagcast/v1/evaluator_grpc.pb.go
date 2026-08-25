@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Evaluator_Evaluate_FullMethodName    = "/flagcast.v1.Evaluator/Evaluate"
 	Evaluator_EvaluateAll_FullMethodName = "/flagcast.v1.Evaluator/EvaluateAll"
+	Evaluator_Watch_FullMethodName       = "/flagcast.v1.Evaluator/Watch"
 )
 
 // EvaluatorClient is the client API for Evaluator service.
@@ -31,6 +32,9 @@ const (
 type EvaluatorClient interface {
 	Evaluate(ctx context.Context, in *EvaluateRequest, opts ...grpc.CallOption) (*EvaluateResponse, error)
 	EvaluateAll(ctx context.Context, in *EvaluateAllRequest, opts ...grpc.CallOption) (*EvaluateAllResponse, error)
+	// Watch streams flag changes evaluated for the request's context, starting
+	// with a snapshot of all current values.
+	Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FlagChange], error)
 }
 
 type evaluatorClient struct {
@@ -61,6 +65,25 @@ func (c *evaluatorClient) EvaluateAll(ctx context.Context, in *EvaluateAllReques
 	return out, nil
 }
 
+func (c *evaluatorClient) Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FlagChange], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Evaluator_ServiceDesc.Streams[0], Evaluator_Watch_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchRequest, FlagChange]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Evaluator_WatchClient = grpc.ServerStreamingClient[FlagChange]
+
 // EvaluatorServer is the server API for Evaluator service.
 // All implementations must embed UnimplementedEvaluatorServer
 // for forward compatibility.
@@ -69,6 +92,9 @@ func (c *evaluatorClient) EvaluateAll(ctx context.Context, in *EvaluateAllReques
 type EvaluatorServer interface {
 	Evaluate(context.Context, *EvaluateRequest) (*EvaluateResponse, error)
 	EvaluateAll(context.Context, *EvaluateAllRequest) (*EvaluateAllResponse, error)
+	// Watch streams flag changes evaluated for the request's context, starting
+	// with a snapshot of all current values.
+	Watch(*WatchRequest, grpc.ServerStreamingServer[FlagChange]) error
 	mustEmbedUnimplementedEvaluatorServer()
 }
 
@@ -84,6 +110,9 @@ func (UnimplementedEvaluatorServer) Evaluate(context.Context, *EvaluateRequest) 
 }
 func (UnimplementedEvaluatorServer) EvaluateAll(context.Context, *EvaluateAllRequest) (*EvaluateAllResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EvaluateAll not implemented")
+}
+func (UnimplementedEvaluatorServer) Watch(*WatchRequest, grpc.ServerStreamingServer[FlagChange]) error {
+	return status.Error(codes.Unimplemented, "method Watch not implemented")
 }
 func (UnimplementedEvaluatorServer) mustEmbedUnimplementedEvaluatorServer() {}
 func (UnimplementedEvaluatorServer) testEmbeddedByValue()                   {}
@@ -142,6 +171,17 @@ func _Evaluator_EvaluateAll_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Evaluator_Watch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(EvaluatorServer).Watch(m, &grpc.GenericServerStream[WatchRequest, FlagChange]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Evaluator_WatchServer = grpc.ServerStreamingServer[FlagChange]
+
 // Evaluator_ServiceDesc is the grpc.ServiceDesc for Evaluator service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -158,6 +198,12 @@ var Evaluator_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Evaluator_EvaluateAll_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Watch",
+			Handler:       _Evaluator_Watch_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "flagcast/v1/evaluator.proto",
 }

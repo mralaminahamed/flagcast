@@ -31,8 +31,24 @@ message EvaluateAllResponse {
   map<string, bool> values = 1;
 }
 
+message WatchRequest {
+  Context context = 1;
+}
+
+// FlagChange is streamed to a watcher when a flag it can see changes. deleted
+// marks the flag as removed (value is meaningless then).
+message FlagChange {
+  string flag_key = 1;
+  bool value = 2;
+  string reason = 3;
+  bool deleted = 4;
+}
+
 // Evaluator serves flag decisions to SDK clients over gRPC.
 service Evaluator {
   rpc Evaluate(EvaluateRequest) returns (EvaluateResponse);
   rpc EvaluateAll(EvaluateAllRequest) returns (EvaluateAllResponse);
+  // Watch streams flag changes evaluated for the request's context, starting
+  // with a snapshot of all current values.
+  rpc Watch(WatchRequest) returns (stream FlagChange);
 }

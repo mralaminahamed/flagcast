@@ -276,6 +276,120 @@ func (x *EvaluateAllResponse) GetValues() map[string]bool {
 	return nil
 }
 
+type WatchRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Context       *Context               `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchRequest) Reset() {
+	*x = WatchRequest{}
+	mi := &file_flagcast_v1_evaluator_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchRequest) ProtoMessage() {}
+
+func (x *WatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flagcast_v1_evaluator_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchRequest.ProtoReflect.Descriptor instead.
+func (*WatchRequest) Descriptor() ([]byte, []int) {
+	return file_flagcast_v1_evaluator_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *WatchRequest) GetContext() *Context {
+	if x != nil {
+		return x.Context
+	}
+	return nil
+}
+
+// FlagChange is streamed to a watcher when a flag it can see changes. deleted
+// marks the flag as removed (value is meaningless then).
+type FlagChange struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FlagKey       string                 `protobuf:"bytes,1,opt,name=flag_key,json=flagKey,proto3" json:"flag_key,omitempty"`
+	Value         bool                   `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	Deleted       bool                   `protobuf:"varint,4,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FlagChange) Reset() {
+	*x = FlagChange{}
+	mi := &file_flagcast_v1_evaluator_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FlagChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FlagChange) ProtoMessage() {}
+
+func (x *FlagChange) ProtoReflect() protoreflect.Message {
+	mi := &file_flagcast_v1_evaluator_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FlagChange.ProtoReflect.Descriptor instead.
+func (*FlagChange) Descriptor() ([]byte, []int) {
+	return file_flagcast_v1_evaluator_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *FlagChange) GetFlagKey() string {
+	if x != nil {
+		return x.FlagKey
+	}
+	return ""
+}
+
+func (x *FlagChange) GetValue() bool {
+	if x != nil {
+		return x.Value
+	}
+	return false
+}
+
+func (x *FlagChange) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *FlagChange) GetDeleted() bool {
+	if x != nil {
+		return x.Deleted
+	}
+	return false
+}
+
 var File_flagcast_v1_evaluator_proto protoreflect.FileDescriptor
 
 const file_flagcast_v1_evaluator_proto_rawDesc = "" +
@@ -302,10 +416,19 @@ const file_flagcast_v1_evaluator_proto_rawDesc = "" +
 	"\x06values\x18\x01 \x03(\v2,.flagcast.v1.EvaluateAllResponse.ValuesEntryR\x06values\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x012\xa6\x01\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\">\n" +
+	"\fWatchRequest\x12.\n" +
+	"\acontext\x18\x01 \x01(\v2\x14.flagcast.v1.ContextR\acontext\"o\n" +
+	"\n" +
+	"FlagChange\x12\x19\n" +
+	"\bflag_key\x18\x01 \x01(\tR\aflagKey\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\bR\x05value\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x18\n" +
+	"\adeleted\x18\x04 \x01(\bR\adeleted2\xe5\x01\n" +
 	"\tEvaluator\x12G\n" +
 	"\bEvaluate\x12\x1c.flagcast.v1.EvaluateRequest\x1a\x1d.flagcast.v1.EvaluateResponse\x12P\n" +
-	"\vEvaluateAll\x12\x1f.flagcast.v1.EvaluateAllRequest\x1a .flagcast.v1.EvaluateAllResponseBTZRgithub.com/mralaminahamed/flagcast/packages/shared/genproto/flagcast/v1;flagcastv1b\x06proto3"
+	"\vEvaluateAll\x12\x1f.flagcast.v1.EvaluateAllRequest\x1a .flagcast.v1.EvaluateAllResponse\x12=\n" +
+	"\x05Watch\x12\x19.flagcast.v1.WatchRequest\x1a\x17.flagcast.v1.FlagChange0\x01BTZRgithub.com/mralaminahamed/flagcast/packages/shared/genproto/flagcast/v1;flagcastv1b\x06proto3"
 
 var (
 	file_flagcast_v1_evaluator_proto_rawDescOnce sync.Once
@@ -319,30 +442,35 @@ func file_flagcast_v1_evaluator_proto_rawDescGZIP() []byte {
 	return file_flagcast_v1_evaluator_proto_rawDescData
 }
 
-var file_flagcast_v1_evaluator_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_flagcast_v1_evaluator_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_flagcast_v1_evaluator_proto_goTypes = []any{
 	(*Context)(nil),             // 0: flagcast.v1.Context
 	(*EvaluateRequest)(nil),     // 1: flagcast.v1.EvaluateRequest
 	(*EvaluateResponse)(nil),    // 2: flagcast.v1.EvaluateResponse
 	(*EvaluateAllRequest)(nil),  // 3: flagcast.v1.EvaluateAllRequest
 	(*EvaluateAllResponse)(nil), // 4: flagcast.v1.EvaluateAllResponse
-	nil,                         // 5: flagcast.v1.Context.AttributesEntry
-	nil,                         // 6: flagcast.v1.EvaluateAllResponse.ValuesEntry
+	(*WatchRequest)(nil),        // 5: flagcast.v1.WatchRequest
+	(*FlagChange)(nil),          // 6: flagcast.v1.FlagChange
+	nil,                         // 7: flagcast.v1.Context.AttributesEntry
+	nil,                         // 8: flagcast.v1.EvaluateAllResponse.ValuesEntry
 }
 var file_flagcast_v1_evaluator_proto_depIdxs = []int32{
-	5, // 0: flagcast.v1.Context.attributes:type_name -> flagcast.v1.Context.AttributesEntry
+	7, // 0: flagcast.v1.Context.attributes:type_name -> flagcast.v1.Context.AttributesEntry
 	0, // 1: flagcast.v1.EvaluateRequest.context:type_name -> flagcast.v1.Context
 	0, // 2: flagcast.v1.EvaluateAllRequest.context:type_name -> flagcast.v1.Context
-	6, // 3: flagcast.v1.EvaluateAllResponse.values:type_name -> flagcast.v1.EvaluateAllResponse.ValuesEntry
-	1, // 4: flagcast.v1.Evaluator.Evaluate:input_type -> flagcast.v1.EvaluateRequest
-	3, // 5: flagcast.v1.Evaluator.EvaluateAll:input_type -> flagcast.v1.EvaluateAllRequest
-	2, // 6: flagcast.v1.Evaluator.Evaluate:output_type -> flagcast.v1.EvaluateResponse
-	4, // 7: flagcast.v1.Evaluator.EvaluateAll:output_type -> flagcast.v1.EvaluateAllResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	8, // 3: flagcast.v1.EvaluateAllResponse.values:type_name -> flagcast.v1.EvaluateAllResponse.ValuesEntry
+	0, // 4: flagcast.v1.WatchRequest.context:type_name -> flagcast.v1.Context
+	1, // 5: flagcast.v1.Evaluator.Evaluate:input_type -> flagcast.v1.EvaluateRequest
+	3, // 6: flagcast.v1.Evaluator.EvaluateAll:input_type -> flagcast.v1.EvaluateAllRequest
+	5, // 7: flagcast.v1.Evaluator.Watch:input_type -> flagcast.v1.WatchRequest
+	2, // 8: flagcast.v1.Evaluator.Evaluate:output_type -> flagcast.v1.EvaluateResponse
+	4, // 9: flagcast.v1.Evaluator.EvaluateAll:output_type -> flagcast.v1.EvaluateAllResponse
+	6, // 10: flagcast.v1.Evaluator.Watch:output_type -> flagcast.v1.FlagChange
+	8, // [8:11] is the sub-list for method output_type
+	5, // [5:8] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_flagcast_v1_evaluator_proto_init() }
@@ -356,7 +484,7 @@ func file_flagcast_v1_evaluator_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_flagcast_v1_evaluator_proto_rawDesc), len(file_flagcast_v1_evaluator_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
