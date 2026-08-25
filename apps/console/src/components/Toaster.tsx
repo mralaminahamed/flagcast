@@ -3,7 +3,7 @@ import { useToasts } from "../lib/toast";
 export function Toaster() {
   const toasts = useToasts((s) => s.toasts);
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2" aria-live="polite" role="status">
       {toasts.map((t) => (
         <div
           key={t.id}

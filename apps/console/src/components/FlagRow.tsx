@@ -49,21 +49,21 @@ export function FlagRow({
         <button
           onClick={onAnalyze}
           aria-label={`Analyze ${flag.key}`}
-          className="rounded p-1 text-muted opacity-0 transition hover:text-brand focus-visible:opacity-100 group-hover:opacity-100"
+          className="rounded p-1 text-muted opacity-100 transition hover:text-brand sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
         >
           <Sparkles size={15} />
         </button>
         <button
           onClick={onEdit}
           aria-label={`Edit ${flag.key}`}
-          className="rounded p-1 text-muted opacity-0 transition hover:text-ink focus-visible:opacity-100 group-hover:opacity-100"
+          className="rounded p-1 text-muted opacity-100 transition hover:text-ink sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
         >
           <Pencil size={15} />
         </button>
         <button
           onClick={onDelete}
           aria-label={`Delete ${flag.key}`}
-          className="rounded p-1 text-muted opacity-0 transition hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+          className="rounded p-1 text-muted opacity-100 transition hover:text-danger sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
         >
           <Trash2 size={15} />
         </button>
