@@ -20,21 +20,25 @@ locals {
   # One entry per Fargate service. `lb = true` puts it behind the ALB.
   services = {
     nats = {
-      image   = "nats:2-alpine"
-      port    = 4222
-      cpu     = 256
-      memory  = 512
-      command = ["-js", "-m", "8222"]
-      lb      = false
-      env     = {}
+      image       = "nats:2-alpine"
+      port        = 4222
+      cpu         = 256
+      memory      = 512
+      command     = ["-js", "-m", "8222"]
+      lb          = false
+      health_path = ""
+      extra_ports = []
+      env         = {}
     }
     gateway = {
-      image   = "${var.image_registry}/gateway:${var.image_tag}"
-      port    = 8080
-      cpu     = 256
-      memory  = 512
-      command = []
-      lb      = true
+      image       = "${var.image_registry}/gateway:${var.image_tag}"
+      port        = 8080
+      cpu         = 256
+      memory      = 512
+      command     = []
+      lb          = true
+      health_path = "/health"
+      extra_ports = []
       env = {
         PORT            = "8080"
         MONGO_URI       = local.mongo_uri
@@ -45,12 +49,14 @@ locals {
       }
     }
     evaluator = {
-      image   = "${var.image_registry}/evaluator:${var.image_tag}"
-      port    = 8081
-      cpu     = 256
-      memory  = 512
-      command = []
-      lb      = false
+      image       = "${var.image_registry}/evaluator:${var.image_tag}"
+      port        = 8081
+      cpu         = 256
+      memory      = 512
+      command     = []
+      lb          = false
+      health_path = "/health"
+      extra_ports = [50051]
       env = {
         PORT      = "8081"
         GRPC_ADDR = ":50051"
@@ -60,12 +66,14 @@ locals {
       }
     }
     ai = {
-      image   = "${var.image_registry}/ai:${var.image_tag}"
-      port    = 8090
-      cpu     = 256
-      memory  = 512
-      command = []
-      lb      = false
+      image       = "${var.image_registry}/ai:${var.image_tag}"
+      port        = 8090
+      cpu         = 256
+      memory      = 512
+      command     = []
+      lb          = false
+      health_path = "/health"
+      extra_ports = []
       env = {
         PORT              = "8090"
         MONGO_URI         = local.mongo_uri
@@ -113,9 +121,18 @@ resource "aws_ecs_task_definition" "svc" {
       essential = true
       command   = each.value.command
       portMappings = [
-        { containerPort = each.value.port, protocol = "tcp" }
+        for p in concat([each.value.port], each.value.extra_ports) :
+        { containerPort = p, protocol = "tcp" }
       ]
       environment = [for k, v in each.value.env : { name = k, value = v }]
+      # ECS-level container health check (services expose /health; nats has none).
+      healthCheck = each.value.health_path == "" ? null : {
+        command     = ["CMD-SHELL", "wget -qO- http://localhost:${each.value.port}${each.value.health_path} || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 15
+      }
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -140,6 +157,12 @@ resource "aws_ecs_service" "svc" {
     subnets          = aws_subnet.public[*].id
     security_groups  = [aws_security_group.service.id]
     assign_public_ip = true
+  }
+
+  # Auto-rollback a deploy that fails to reach steady state (bad image, crashloop).
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
   }
 
   service_registries {
