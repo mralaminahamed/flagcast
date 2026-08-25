@@ -11,10 +11,18 @@ import (
 	"github.com/mralaminahamed/flagcast/packages/shared/health"
 	"github.com/mralaminahamed/flagcast/packages/shared/logger"
 	"github.com/mralaminahamed/flagcast/packages/shared/store"
+	"github.com/mralaminahamed/flagcast/packages/shared/tracing"
 )
 
 func main() {
 	logger.InitLogger(logger.LoggerOptions{Level: config.Env("LOG_LEVEL", "info")})
+
+	shutdown, err := tracing.Init(context.Background(), "flagcast-gateway")
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("gateway: tracing init failed")
+	} else {
+		defer shutdown(context.Background())
+	}
 
 	uri := config.Env("MONGO_URI", "mongodb://localhost:27017")
 	st, err := store.NewFlagStore(context.Background(), uri, config.Env("MONGO_DB", "flagcast"))

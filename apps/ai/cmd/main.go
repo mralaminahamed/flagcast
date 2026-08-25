@@ -13,17 +13,25 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/mralaminahamed/flagcast/apps/ai/internal/analyzer"
 	"github.com/mralaminahamed/flagcast/packages/shared/config"
 	"github.com/mralaminahamed/flagcast/packages/shared/health"
 	"github.com/mralaminahamed/flagcast/packages/shared/logger"
 	"github.com/mralaminahamed/flagcast/packages/shared/store"
+	"github.com/mralaminahamed/flagcast/packages/shared/tracing"
 )
 
 func main() {
 	logger.InitLogger(logger.LoggerOptions{Level: config.Env("LOG_LEVEL", "info")})
 	ctx := context.Background()
+
+	if shutdown, err := tracing.Init(ctx, "flagcast-ai"); err != nil {
+		logger.Log.Warn().Err(err).Msg("ai: tracing init failed")
+	} else {
+		defer shutdown(context.Background())
+	}
 
 	st, err := store.NewFlagStore(ctx, config.Env("MONGO_URI", "mongodb://localhost:27017"), config.Env("MONGO_DB", "flagcast"))
 	if err != nil {
@@ -43,7 +51,7 @@ func main() {
 	mux.HandleFunc("/analyze", analyzeHandler(st, az))
 
 	addr := health.AddrFromEnv(":8090")
-	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: addr, Handler: otelhttp.NewHandler(mux, "ai"), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		logger.Log.Info().Str("addr", addr).Msg("ai listening")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

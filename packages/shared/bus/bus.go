@@ -2,7 +2,8 @@
 //
 // Changes are ephemeral notifications: a subscriber that misses one re-syncs
 // from Mongo at startup and on the next change, so core NATS pub/sub (not
-// JetStream) is the right fit — fast fan-out, no durability overhead.
+// JetStream) is the right fit — fast fan-out, no durability overhead. W3C trace
+// context rides in message headers so a trace spans the gateway → evaluator hop.
 package bus
 
 import (
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"go.opentelemetry.io/otel"
 )
 
 // SubjectFlagChanged carries flag mutations from the gateway to evaluators.
@@ -38,18 +40,48 @@ func Connect(url string) (*Bus, error) {
 	return &Bus{nc: nc}, nil
 }
 
-// PublishJSON encodes v and publishes it to subject.
-func (b *Bus) PublishJSON(subject string, v any) error {
+// natsCarrier adapts nats.Header to the OTel TextMapCarrier interface.
+type natsCarrier struct{ h nats.Header }
+
+func (c natsCarrier) Get(key string) string {
+	if v := c.h[key]; len(v) > 0 {
+		return v[0]
+	}
+	return ""
+}
+func (c natsCarrier) Set(key, value string) { c.h[key] = []string{value} }
+func (c natsCarrier) Keys() []string {
+	ks := make([]string, 0, len(c.h))
+	for k := range c.h {
+		ks = append(ks, k)
+	}
+	return ks
+}
+
+// PublishJSON encodes v and publishes it to subject, injecting the trace context
+// from ctx into the message headers.
+func (b *Bus) PublishJSON(ctx context.Context, subject string, v any) error {
 	data, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	return b.nc.Publish(subject, data)
+	msg := &nats.Msg{Subject: subject, Data: data, Header: nats.Header{}}
+	otel.GetTextMapPropagator().Inject(ctx, natsCarrier{msg.Header})
+	return b.nc.PublishMsg(msg)
 }
 
-// Subscribe registers handler for subject and returns an unsubscribe func.
-func (b *Bus) Subscribe(subject string, handler func([]byte)) (func(), error) {
-	sub, err := b.nc.Subscribe(subject, func(m *nats.Msg) { handler(m.Data) })
+// Subscribe registers handler for subject and returns an unsubscribe func. The
+// handler receives a context carrying the extracted trace and a consumer span.
+func (b *Bus) Subscribe(subject string, handler func(context.Context, []byte)) (func(), error) {
+	sub, err := b.nc.Subscribe(subject, func(m *nats.Msg) {
+		ctx := context.Background()
+		if m.Header != nil {
+			ctx = otel.GetTextMapPropagator().Extract(ctx, natsCarrier{m.Header})
+		}
+		ctx, span := otel.Tracer("bus").Start(ctx, subject+" consume")
+		defer span.End()
+		handler(ctx, m.Data)
+	})
 	if err != nil {
 		return nil, err
 	}
