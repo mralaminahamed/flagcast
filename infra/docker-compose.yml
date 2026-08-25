@@ -80,6 +80,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
       AI_URL: http://ai:8090
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports: ["0.0.0.0:8080:8080"]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
@@ -97,6 +98,7 @@ services:
       MONGO_URI: mongodb://flagcast:flagcast@mongo:27017/flagcast?authSource=admin
       REDIS_URL: redis://redis:6379/0
       NATS_URL: nats://nats:4222
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports: ["0.0.0.0:50051:50051"]
 
   ai:
@@ -108,6 +110,7 @@ services:
       MONGO_URI: mongodb://flagcast:flagcast@mongo:27017/flagcast?authSource=admin
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
 
   console:
     image: node:24-alpine
@@ -124,7 +127,46 @@ services:
     restart: unless-stopped
     networks: [flagcast-net]
 
+  # --- observability profile: docker compose --profile observability up ---
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: flagcast-jaeger
+    profiles: [observability]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "127.0.0.1:16686:16686"   # UI
+      - "127.0.0.1:4317:4317"     # OTLP gRPC
+    restart: unless-stopped
+    networks: [flagcast-net]
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: flagcast-prometheus
+    profiles: [observability]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["127.0.0.1:9099:9090"]
+    restart: unless-stopped
+    networks: [flagcast-net]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: flagcast-grafana
+    profiles: [observability]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports: ["127.0.0.1:3099:3000"]
+    depends_on: [prometheus]
+    restart: unless-stopped
+    networks: [flagcast-net]
+
 volumes:
+  grafana-data:
   console-node-modules:
   mongo-data:
   redis-data:
