@@ -60,7 +60,12 @@ func main() {
 		}
 	}
 
-	repo := flags.New(st, fc)
+	// Pass a nil Cache interface (not a typed-nil *FlagCache) when Redis is absent.
+	var fcache flags.Cache
+	if fc != nil {
+		fcache = fc
+	}
+	repo := flags.New(st, fcache)
 	hub := watch.NewHub(repo)
 
 	warm := func() {

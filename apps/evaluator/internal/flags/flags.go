@@ -7,21 +7,36 @@ import (
 	"errors"
 
 	"github.com/mralaminahamed/flagcast/packages/shared/bus"
-	"github.com/mralaminahamed/flagcast/packages/shared/cache"
 	"github.com/mralaminahamed/flagcast/packages/shared/logger"
 	"github.com/mralaminahamed/flagcast/packages/shared/metrics"
 	"github.com/mralaminahamed/flagcast/packages/shared/models"
 	"github.com/mralaminahamed/flagcast/packages/shared/store"
 )
 
-// Repo reads flags from Mongo, caching in Redis when configured. Cache errors
-// are logged and fall through to Mongo — the cache never breaks evaluation.
-type Repo struct {
-	store *store.FlagStore
-	cache *cache.FlagCache // may be nil
+// Store is the flag source of truth (satisfied by *store.FlagStore).
+type Store interface {
+	Get(ctx context.Context, key string) (models.Flag, error)
+	List(ctx context.Context) ([]models.Flag, error)
 }
 
-func New(s *store.FlagStore, c *cache.FlagCache) *Repo { return &Repo{store: s, cache: c} }
+// Cache fronts the store (satisfied by *cache.FlagCache).
+type Cache interface {
+	Get(ctx context.Context, key string) (models.Flag, bool, error)
+	GetAll(ctx context.Context) ([]models.Flag, error)
+	Set(ctx context.Context, f models.Flag) error
+	SetAll(ctx context.Context, flags []models.Flag) error
+	Delete(ctx context.Context, key string) error
+}
+
+// Repo reads flags from the store, caching when a Cache is configured. Cache
+// errors are logged and fall through to the store — the cache never breaks
+// evaluation.
+type Repo struct {
+	store Store
+	cache Cache // may be nil
+}
+
+func New(s Store, c Cache) *Repo { return &Repo{store: s, cache: c} }
 
 // Warm loads every flag from Mongo into the cache at startup.
 func (r *Repo) Warm(ctx context.Context) error {
