@@ -68,10 +68,20 @@ func New(s *store.FlagStore, pub handler.Publisher, aiURL string) *echo.Echo {
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	api := e.Group("/api")
+	// Fail closed: with no key set, /api is refused unless ALLOW_OPEN_API=true
+	// (dev). This prevents an internet-facing deploy that forgot to set a key
+	// from silently exposing the whole control plane.
 	if key := os.Getenv("GATEWAY_API_KEY"); key != "" {
 		api.Use(apiKey(key))
+	} else if os.Getenv("ALLOW_OPEN_API") == "true" {
+		logger.Log.Warn().Msg("gateway: GATEWAY_API_KEY unset, ALLOW_OPEN_API=true — /api is OPEN (dev only)")
 	} else {
-		logger.Log.Warn().Msg("gateway: GATEWAY_API_KEY unset — /api is unauthenticated")
+		logger.Log.Error().Msg("gateway: GATEWAY_API_KEY unset and ALLOW_OPEN_API!=true — /api refuses all requests")
+		api.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "API key not configured"})
+			}
+		})
 	}
 	api.GET("/flags", h.List)
 	api.POST("/flags", h.Create)
