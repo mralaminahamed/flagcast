@@ -2,7 +2,7 @@
 
 // Live SDK check against a running evaluator. Run with:
 //
-//	FLAGCAST_ADDR=localhost:50051 go test -tags=live ./packages/sdk/...
+//	FLAGCAST_ADDR=localhost:8202 go test -tags=live ./packages/sdk/...
 //
 // Excluded from the default build/CI (needs a live server + seeded flags).
 package flagcast
@@ -20,7 +20,7 @@ func apiBase() string {
 	if v := os.Getenv("FLAGCAST_API"); v != "" {
 		return v
 	}
-	return "http://localhost:8080"
+	return "http://localhost:8201"
 }
 
 func apiDo(t *testing.T, method, path, body string) int {
@@ -41,7 +41,7 @@ func apiDo(t *testing.T, method, path, body string) int {
 func TestSDKLive(t *testing.T) {
 	addr := os.Getenv("FLAGCAST_ADDR")
 	if addr == "" {
-		addr = "localhost:50051"
+		addr = "localhost:8202"
 	}
 	c, err := Dial(addr)
 	if err != nil {
@@ -71,7 +71,7 @@ func TestSDKLive(t *testing.T) {
 func TestSDKWatchLive(t *testing.T) {
 	addr := os.Getenv("FLAGCAST_ADDR")
 	if addr == "" {
-		addr = "localhost:50051"
+		addr = "localhost:8202"
 	}
 	c, err := Dial(addr)
 	if err != nil {

@@ -4,7 +4,7 @@
 // against a running gateway. Run with:
 //
 //	go build -o /tmp/flagcast-mcp ./apps/mcp/cmd
-//	FLAGCAST_MCP_BIN=/tmp/flagcast-mcp FLAGCAST_API=http://127.0.0.1:8080 \
+//	FLAGCAST_MCP_BIN=/tmp/flagcast-mcp FLAGCAST_API=http://127.0.0.1:8201 \
 //	  go test -tags=live -run TestMCPLive -v ./apps/mcp/...
 package main
 
@@ -27,7 +27,7 @@ func TestMCPLive(t *testing.T) {
 	defer cancel()
 
 	cmd := exec.Command(bin)
-	cmd.Env = append(os.Environ(), "FLAGCAST_API="+envOr("FLAGCAST_API", "http://127.0.0.1:8080"))
+	cmd.Env = append(os.Environ(), "FLAGCAST_API="+envOr("FLAGCAST_API", "http://127.0.0.1:8201"))
 	client := mcp.NewClient(&mcp.Implementation{Name: "probe", Version: "1"}, nil)
 	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
 	if err != nil {

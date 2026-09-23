@@ -125,10 +125,10 @@ make up
 
 `make up` brings up MongoDB, Redis, NATS and every service. Then:
 
-- Console — http://localhost:5173
-- API — http://localhost:8080
-- Evaluator gRPC — localhost:50051
-- Metrics — http://localhost:8081/metrics (evaluator), :8080/metrics (gateway)
+- Console — http://localhost:8200
+- API — http://localhost:8201
+- Evaluator gRPC — localhost:8202
+- Metrics — http://localhost:8201/metrics (gateway; the evaluator's `:8081` is not published)
 - Observability (Jaeger + Prometheus + Grafana):
 
 ```bash

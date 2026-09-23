@@ -1,6 +1,6 @@
 // Package flagcast is the Go SDK: a thin client over the Evaluator gRPC service.
 //
-//	c, _ := flagcast.Dial("localhost:50051")
+//	c, _ := flagcast.Dial("localhost:8202")
 //	defer c.Close()
 //	if c.BoolValue(ctx, "new-checkout", flagcast.Context{Key: userID}, false) { ... }
 package flagcast
