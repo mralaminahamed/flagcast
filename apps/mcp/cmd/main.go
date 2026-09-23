@@ -2,7 +2,7 @@
 // (e.g. Claude) can call. Every tool goes through the gateway REST API, so the
 // same auth and validation apply as for a human using the console.
 //
-// Config: FLAGCAST_API (default http://localhost:8080), FLAGCAST_API_KEY.
+// Config: FLAGCAST_API (default http://localhost:8201), FLAGCAST_API_KEY.
 package main
 
 import (
@@ -113,7 +113,7 @@ func main() {
 	// stdout carries the MCP protocol — logs must go to stderr.
 	logger.InitLogger(logger.LoggerOptions{Level: envOr("LOG_LEVEL", "info"), Stderr: true})
 	g := &gw{
-		base:   envOr("FLAGCAST_API", "http://localhost:8080"),
+		base:   envOr("FLAGCAST_API", "http://localhost:8201"),
 		key:    os.Getenv("FLAGCAST_API_KEY"),
 		client: &http.Client{Timeout: 15 * time.Second},
 	}
