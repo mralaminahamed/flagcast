@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+*.png binary
+
+# Generated protobuf / gRPC stubs (buf generate)
+packages/shared/genproto/** linguist-generated=true
+
+# Lockfiles
+go.sum linguist-generated=true -diff
+apps/console/pnpm-lock.yaml linguist-generated=true -diff
+infra/terraform/.terraform.lock.hcl linguist-generated=true -diff
