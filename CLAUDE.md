@@ -10,17 +10,19 @@ Redis, Prometheus/Grafana, and Claude-powered experiment analysis with an MCP
 server.
 
 - Go 1.27, single module `github.com/mralaminahamed/flagcast`
-- Web: React 19 + TypeScript (Vite), in `apps/console` (later phase)
+- Web: React 19 + TypeScript (Vite), in `apps/console`
 
 ## Layout
 
 ```
-apps/{gateway,evaluator,streamer,ai,console}
-packages/shared/   # store cache bus proto models config logger health metrics auth
-infra/             # docker-compose, mongo, prometheus, grafana, k8s
+apps/{gateway,evaluator,ai,mcp,console}
+packages/shared/   # store cache bus genproto models config logger health metrics eval stats tracing validation
+packages/sdk/      # Go client SDK
+proto/             # gRPC .proto sources (make proto -> packages/shared/genproto)
+infra/             # docker-compose, mongo, prometheus, grafana, terraform
 ```
 
-Each `apps/<svc>/cmd` builds its own binary.
+Each Go `apps/<svc>/cmd` builds its own binary.
 
 ## Commands
 
@@ -43,8 +45,9 @@ Verify live where it matters (run the service, curl the endpoint).
 
 - **gRPC** is the evaluation path: SDK clients call the evaluator for flag
   decisions and subscribe to a server-stream of changes. REST (gateway) is the
-  admin/control plane. All proto lives in `packages/shared/proto`.
-- **NATS** carries flag-change events from the gateway to the streamer/evaluator.
+  admin/control plane. Proto sources live in `proto/`; generated
+  code in `packages/shared/genproto`.
+- **NATS** carries flag-change events from the gateway to the evaluator.
 - **Redis** caches evaluations; **Mongo** stores flag config + an audit log.
 - **Graceful degradation:** the gateway runs standalone when a dep is absent.
 - **Health vs readiness:** `/health` is liveness; `/ready` pings deps (503 on
@@ -57,6 +60,6 @@ Verify live where it matters (run the service, curl the endpoint).
 - **Comments:** minimal — only what's required, short, no over-explaining.
 - **Git:** small single-scope Conventional Commits; branch from `trunk`; open a
   PR per change; merge with a merge commit (not squash); delete the branch.
-  - Scopes: `gateway evaluator streamer ai console infra`.
+  - Scopes: `gateway evaluator ai mcp console infra`.
 - **Never commit** `.env`. `PLAN.md`/`ARCHITECTURE.md` stay untracked.
 - Reuse `packages/shared` rather than duplicating logic.
