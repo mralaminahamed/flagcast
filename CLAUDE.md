@@ -60,6 +60,6 @@ Verify live where it matters (run the service, curl the endpoint).
 - **Comments:** minimal — only what's required, short, no over-explaining.
 - **Git:** small single-scope Conventional Commits; branch from `trunk`; open a
   PR per change; merge with a merge commit (not squash); delete the branch.
-  - Scopes: `gateway evaluator streamer ai console infra`.
+  - Scopes: `gateway evaluator ai mcp console infra`.
 - **Never commit** `.env`. `PLAN.md`/`ARCHITECTURE.md` stay untracked.
 - Reuse `packages/shared` rather than duplicating logic.
