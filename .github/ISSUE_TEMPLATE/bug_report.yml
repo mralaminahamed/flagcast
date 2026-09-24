@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in flagcast is not working as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For security problems, use the security policy instead of this form.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - gateway
+        - evaluator
+        - ai
+        - mcp
+        - console
+        - Go SDK
+        - infra
+        - not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, including any error output or logs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. make up
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD`.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Go version, Docker version, browser (for the console).
